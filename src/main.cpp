@@ -9,7 +9,7 @@ namespace
 
 	using SlotKeyData = std::pair<Key, std::set<Biped>>;
 	using SlotKeyVec = std::vector<SlotKeyData>;
-	
+
 	static SlotKeyVec armorSlots;
 	static SlotKeyVec weaponSlots;
 
@@ -435,14 +435,10 @@ namespace Combat
 
 			switch (*evn->newState) {
 			case RE::ACTOR_COMBAT_STATE::kCombat:
-				{
-					ToggleActorEquipment(actor, false);
-				}
+				ToggleActorEquipment(actor, false);
 				break;
 			case RE::ACTOR_COMBAT_STATE::kNone:
-				{
-					ToggleActorEquipment(actor, true);
-				}
+				ToggleActorEquipment(actor, true);
 				break;
 			default:
 				break;
@@ -550,9 +546,7 @@ namespace Location
 					switch (automaticToggle) {
 					case 1:
 					case 2:
-						{
-							ToggleFollowerEquipment(true);
-						}
+						ToggleFollowerEquipment(true);
 						break;
 					default:
 						break;
@@ -563,9 +557,7 @@ namespace Location
 					switch (automaticToggle) {
 					case 1:
 					case 2:
-						{
-							ToggleFollowerEquipment(false);
-						}
+						ToggleFollowerEquipment(false);
 						break;
 					default:
 						break;
@@ -680,14 +672,10 @@ namespace Toggle
 					toggled = !toggled;
 					switch (hotkeyToggle) {
 					case 0:
-						{
-							ToggleActorEquipment(RE::PlayerCharacter::GetSingleton(), a_slots, toggled);
-						}
+						ToggleActorEquipment(RE::PlayerCharacter::GetSingleton(), a_slots, toggled);
 						break;
 					case 1:
-						{
-							ToggleFollowerEquipment(a_slots, toggled);
-						}
+						ToggleFollowerEquipment(a_slots, toggled);
 						break;
 					case 2:
 						{
