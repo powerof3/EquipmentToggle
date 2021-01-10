@@ -20,6 +20,9 @@
     <None Include=".clang-format" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="include\main.h">
+      <Filter>include</Filter>
+    </ClInclude>
     <ClInclude Include="include\PCH.h">
       <Filter>include</Filter>
     </ClInclude>

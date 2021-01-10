@@ -235,6 +235,7 @@
     <None Include=".clang-format" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="include\main.h" />
     <ClInclude Include="include\PCH.h" />
     <ClInclude Include="include\version.h" />
     <ClInclude Include="resource.h" />
