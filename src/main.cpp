@@ -14,8 +14,8 @@ namespace
 	static SlotKeyVec armorSlots;
 	static SlotKeyVec weaponSlots;
 
-	static std::int32_t automaticToggle = 0;
-	static std::int32_t hotkeyToggle = 0;
+	static std::int32_t automaticToggleVal = 0;
+	static std::int32_t hotkeyToggleVal = 0;
 
 	static bool autoUnequip = true;
 	static bool unhideDuringCombat = true;
@@ -44,28 +44,34 @@ namespace
 
 	bool CanToggleActorEquipment(RE::Actor* a_actor)
 	{
-		switch (automaticToggle) {
+		bool result = false;
+		
+		switch (automaticToggleVal) {
 		case 0:
 			if (a_actor->IsPlayerRef()) {
-				return true;
+				result = true;
 			}
+			break;
 		case 1:
 			if (a_actor->IsPlayerTeammate() && a_actor->HasKeyword(NPC)) {
-				return true;
+				result = true;
 			}
+			break;
 		case 2:
 			if (a_actor->IsPlayerRef() || (a_actor->IsPlayerTeammate() && a_actor->HasKeyword(NPC))) {
-				return true;
+				result = true;
 			}
+			break;
 		case 3:
 			if (a_actor->HasKeyword(NPC)) {
-				return true;
+				result = true;
 			}
+			break;
 		default:
 			break;
 		}
 
-		return false;
+		return result;
 	}
 
 	namespace HAIR
@@ -268,6 +274,45 @@ namespace
 				auto actorPtr = handle.get();
 				auto actor = actorPtr.get();
 				if (actor && actor->IsPlayerTeammate() && actor->HasKeyword(NPC)) {
+					auto biped = actor->biped.get();
+					if (biped) {
+						ToggleSlots(actor->GetActorBase(), biped, actor->Get3D(), a_slots, a_hide);
+					}
+				}
+			}
+		}
+	}
+
+	void ToggleNPCEquipment(bool a_hide)
+	{
+		auto processList = RE::ProcessLists::GetSingleton();
+		if (processList) {
+			for (auto& handle : processList->highActorHandles) {
+				auto actorPtr = handle.get();
+				auto actor = actorPtr.get();
+				if (actor && actor->HasKeyword(NPC)) {
+					auto biped = actor->biped.get();
+					if (biped) {
+						for (auto& [key, armorSlot] : armorSlots) {
+							ToggleSlots(actor->GetActorBase(), biped, actor->Get3D(), armorSlot, a_hide);
+						}
+						for (auto& [key, weaponSlot] : weaponSlots) {
+							ToggleSlots(actor->GetActorBase(), biped, actor->Get3D(), weaponSlot, a_hide);
+						}
+					}
+				}
+			}
+		}
+	}
+
+	void ToggleNPCEquipment(const SlotData& a_slots, bool a_hide)
+	{
+		auto processList = RE::ProcessLists::GetSingleton();
+		if (processList) {
+			for (auto& handle : processList->highActorHandles) {
+				auto actorPtr = handle.get();
+				auto actor = actorPtr.get();
+				if (actor && actor->HasKeyword(NPC)) {
 					auto biped = actor->biped.get();
 					if (biped) {
 						ToggleSlots(actor->GetActorBase(), biped, actor->Get3D(), a_slots, a_hide);
@@ -480,9 +525,11 @@ namespace Combat
 
 	void Install()
 	{
-		PlayerCombat::Install();
-		logger::info("Registered for player combat (unhide during combat)");
-		if (automaticToggle != 0) {
+		if (automaticToggleVal != 1) {
+			PlayerCombat::Install();
+			logger::info("Registered for player combat (unhide during combat)");
+		}				
+		if (automaticToggleVal != 0) {
 			auto srcHolder = RE::ScriptEventSourceHolder::GetSingleton();
 			if (srcHolder) {
 				srcHolder->AddEventSink(Combat::NPCCombat::GetSingleton());
@@ -536,22 +583,48 @@ namespace Location
 			if (player) {
 				if (IsCellHome(cell)) {
 					playerInHouse = true;
-					ToggleActorEquipment(player, playerInHouse);
-					switch (automaticToggle) {
+					switch (automaticToggleVal) {
+					case 0:
+						ToggleActorEquipment(player, playerInHouse);
+						break;
 					case 1:
-					case 2:
 						ToggleFollowerEquipment(playerInHouse);
+						break;
+					case 2:
+						{
+							ToggleActorEquipment(player, playerInHouse);
+							ToggleFollowerEquipment(playerInHouse);
+						}
+						break;
+					case 3:
+						{
+							ToggleActorEquipment(player, playerInHouse);
+							ToggleNPCEquipment(playerInHouse);
+						}						
 						break;
 					default:
 						break;
 					}
 				} else if (playerInHouse) {
 					playerInHouse = false;
-					ToggleActorEquipment(player, playerInHouse);
-					switch (automaticToggle) {
+					switch (automaticToggleVal) {
+					case 0:
+						ToggleActorEquipment(player, playerInHouse);
+						break;
 					case 1:
-					case 2:
 						ToggleFollowerEquipment(playerInHouse);
+						break;
+					case 2:
+						{
+							ToggleActorEquipment(player, playerInHouse);
+							ToggleFollowerEquipment(playerInHouse);
+						}
+						break;
+					case 3:
+						{
+							ToggleActorEquipment(player, playerInHouse);
+							ToggleNPCEquipment(playerInHouse);
+						}
 						break;
 					default:
 						break;
@@ -616,24 +689,6 @@ namespace Toggle
 	}
 
 
-	void ToggleNPCEquipment(const SlotData& a_slots, bool a_hide)
-	{
-		auto processList = RE::ProcessLists::GetSingleton();
-		if (processList) {
-			for (auto& handle : processList->highActorHandles) {
-				auto actorPtr = handle.get();
-				auto actor = actorPtr.get();
-				if (actor && actor->HasKeyword(NPC)) {
-					auto biped = actor->biped.get();
-					if (biped) {
-						ToggleSlots(actor->GetActorBase(), biped, actor->Get3D(), a_slots, a_hide);
-					}
-				}
-			}
-		}
-	}
-
-
 	class InputHandler : public RE::BSTEventSink<RE::InputEvent*>
 	{
 	public:
@@ -667,7 +722,7 @@ namespace Toggle
 
 				auto key = static_cast<Key>(button->idCode);
 				ProcessKey(key, armorSlots, weaponSlots, [&](const auto& a_slots) {
-					switch (hotkeyToggle) {
+					switch (hotkeyToggleVal) {
 					case 0:
 						ToggleActorEquipment(RE::PlayerCharacter::GetSingleton(), a_slots, a_slots.first);
 						break;
@@ -804,7 +859,7 @@ namespace INI
 			return std::nullopt;
 		}
 
-		return std::make_pair(key, std::make_pair(automaticToggle ? false : true, slotSet));
+		return std::make_pair(key, std::make_pair(automaticToggleVal != -1 ? true : false, slotSet));
 	}
 
 
@@ -836,7 +891,7 @@ namespace INI
 			return std::nullopt;
 		}
 
-		return std::make_pair(key, std::make_pair(automaticToggle ? false : true, slotSet));
+		return std::make_pair(key, std::make_pair(automaticToggleVal != -1 ? true : false, slotSet));
 	}
 
 
@@ -871,8 +926,10 @@ namespace INI
 			return false;
 		}
 
-		automaticToggle = STRING::to_int<std::int32_t>(ini.GetValue("Settings", "Auto Toggle Type", "0"));
-		hotkeyToggle = STRING::to_int<std::int32_t>(ini.GetValue("Settings", "Toggle Key Type", "0"));
+		automaticToggleVal = STRING::to_int<std::int32_t>(ini.GetValue("Settings", "Auto Toggle Type", "0"));
+		logger::info("Auto toggle type : {}", automaticToggleVal);
+		hotkeyToggleVal = STRING::to_int<std::int32_t>(ini.GetValue("Settings", "Toggle Key Type", "0"));
+		logger::info("Hotkey toggle type : {}", hotkeyToggleVal);
 
 		autoUnequip = ini.GetBoolValue("Settings", "Hide When Equipped", true);
 		unhideDuringCombat = ini.GetBoolValue("Settings", "Unhide During Combat", false);
@@ -893,7 +950,7 @@ void OnInit(SKSE::MessagingInterface::Message* a_msg)
 	switch (a_msg->type) {
 	case SKSE::MessagingInterface::kDataLoaded:
 		{
-			if (automaticToggle != -1) {
+			if (automaticToggleVal != -1) {
 				if (unhideDuringCombat) {
 					Combat::Install();
 				}
@@ -901,7 +958,7 @@ void OnInit(SKSE::MessagingInterface::Message* a_msg)
 					Location::Install();
 				}
 			}
-			if (hotkeyToggle != -1) {
+			if (hotkeyToggleVal != -1) {
 				Toggle::Install();
 			}
 		}
@@ -974,7 +1031,7 @@ extern "C" DLLEXPORT bool APIENTRY SKSEPlugin_Load(const SKSE::LoadInterface* a_
 			return false;
 		}
 
-		if (automaticToggle != -1) {
+		if (automaticToggleVal != -1) {
 			SKSE::AllocTrampoline(1 << 6);
 			Attach::Install();
 		}
