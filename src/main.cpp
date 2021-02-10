@@ -1,264 +1,273 @@
-﻿#include "version.h"
+﻿#include "hair.h"
+#include "version.h"
 
-// GLOBALS
 namespace
 {
-	using Biped = RE::BIPED_OBJECT;
-	using Key = RE::BSKeyboardDevice::Key;
-	using HeadPart = RE::BGSHeadPart::HeadPartType;
-
 	using SlotData = std::pair<bool, std::set<Biped>>;
 	using SlotKeyData = std::pair<Key, SlotData>;
 	using SlotKeyVec = std::vector<SlotKeyData>;
 
-	static SlotKeyVec armorSlots;
-	static SlotKeyVec weaponSlots;
+	SlotKeyVec armorSlots;
+	SlotKeyVec weaponSlots;
 
-	static std::int32_t automaticToggleVal = 0;
-	static std::int32_t hotkeyToggleVal = 0;
+	std::int32_t automaticToggleVal = 0;
+	std::int32_t hotkeyToggleVal = 0;
 
-	static bool autoUnequip = true;
-	static bool unhideDuringCombat = true;
-	static bool hideAtHome = true;
+	bool autoUnequip = true;
+	bool unhideDuringCombat = true;
+	bool hideAtHome = true;
 
 	auto constexpr NPC = "ActorTypeNPC"sv;
 	auto constexpr PlayerHome = "LocTypePlayerHouse"sv;
 	auto constexpr Inn = "LocTypeInn"sv;
-}
 
-//GLOBAL FUNCTIONS
-namespace
-{
-	std::pair<bool, bool> GetSlotInfo(const SlotKeyVec& a_vec, std::function<bool(Biped a_slot)> a_func)
+
+	auto GetSlotInfo(const SlotKeyVec& a_vec, std::function<bool(Biped a_slot)> a_func) -> std::tuple<bool, bool, Biped>
 	{
 		for (auto& [key, data] : a_vec) {
-			auto&& [state, slots] = data;
+			auto [autoToggle, slots] = data;
 			for (auto& slot : slots) {
 				if (a_func(slot)) {
-					return state ? std::make_pair(true, true) : std::make_pair(true, false);
+					return { true, autoToggle, slot };
 				}
 			}
 		}
-		return { false, false };
+		return { false, false, Biped::kNone };
 	}
 
-	bool CanToggleActorEquipment(RE::Actor* a_actor)
+	auto CanToggleActorEquipment(RE::Actor* a_actor) -> bool
 	{
-		bool result = false;
-		
 		switch (automaticToggleVal) {
 		case 0:
-			if (a_actor->IsPlayerRef()) {
-				result = true;
-			}
-			break;
+			return a_actor->IsPlayerRef();
 		case 1:
-			if (a_actor->IsPlayerTeammate() && a_actor->HasKeyword(NPC)) {
-				result = true;
-			}
-			break;
+			return a_actor->IsPlayerTeammate() && a_actor->HasKeyword(NPC);
 		case 2:
-			if (a_actor->IsPlayerRef() || (a_actor->IsPlayerTeammate() && a_actor->HasKeyword(NPC))) {
-				result = true;
-			}
-			break;
+			return a_actor->IsPlayerRef() || a_actor->IsPlayerTeammate() && a_actor->HasKeyword(NPC);
 		case 3:
-			if (a_actor->HasKeyword(NPC)) {
-				result = true;
-			}
-			break;
+			return a_actor->HasKeyword(NPC);
 		default:
-			break;
+			return false;
 		}
-
-		return result;
 	}
+}
 
-	namespace HAIR
+
+namespace SlotManager
+{
+	void SetData(RE::NiAVObject* a_object, const Biped a_slot, bool a_hide)
 	{
-		void DoHairDismember(RE::BSGeometry* a_shape, RE::TESRace* a_race, bool a_enable)
-		{
-			using func_t = decltype(&DoHairDismember);
-			REL::Relocation<func_t> func{ REL::ID(24403) };
-			return func(a_shape, a_race, a_enable);
-		}
+		const auto name("EquipToggle - " + std::to_string(to_underlying(a_slot)));
 
-		void ToggleHairExtraParts(const RE::BSTArray<RE::BGSHeadPart*>& a_parts, RE::NiAVObject* a_root, RE::TESRace* a_race, bool a_hide)
-		{
-			for (auto& headpart : a_parts) {
-				if (headpart) {
-					if (auto node = a_root->GetObjectByName(headpart->formEditorID); node) {
-						if (auto shape = node->AsGeometry(); shape) {
-							DoHairDismember(shape, a_race, a_hide);
-						}
-					}
-					ToggleHairExtraParts(headpart->extraParts, a_root, a_race, a_hide);
-				}
-			}
-		}
-
-		void ToggleHair(RE::NiAVObject* a_root, RE::TESNPC* a_npc, bool a_hide)
-		{
-			if (!a_npc) {
-				return;
-			}
-
-			if (!a_root) {
-				return;
-			}
-
-			auto race = a_npc->GetRace();
-			if (race) {
-				auto headPart = a_npc->GetCurrentHeadPartByType(HeadPart::kHair);
-				if (!headPart) {
-					headPart = race->GetHeadPartByType(HeadPart::kHair, a_npc->GetSex());
-				}
-
-				if (headPart) {
-					if (auto node = a_root->GetObjectByName(headPart->formEditorID); node) {
-						if (auto shape = node->AsDynamicTriShape(); shape) {
-							DoHairDismember(shape, race, a_hide);
-						}
-					}
-					ToggleHairExtraParts(headPart->extraParts, a_root, race, a_hide);
-				}
+		if (const auto extra = a_object->GetExtraData<RE::NiBooleanExtraData>(name); extra) {
+			extra->data = a_hide;
+		} else {
+			const auto newExtra = RE::NiBooleanExtraData::Create(name, a_hide);
+			if (newExtra) {
+				a_object->AddExtraData(newExtra);
 			}
 		}
 	}
 
-	namespace HEAD
+
+	bool GetData(RE::NiAVObject* a_object, const Biped a_slot, bool a_default)
 	{
-		void ToggleExtraParts(const RE::BSTArray<RE::BGSHeadPart*>& a_parts, RE::NiAVObject* a_root, std::uint16_t a_slot, bool a_hide)
-		{
-			for (auto& headpart : a_parts) {
-				if (headpart) {
-					if (auto node = a_root->GetObjectByName(headpart->formEditorID); node) {
-						if (auto shape = node->AsGeometry(); shape) {
-							shape->UpdateDismemberPartion(a_slot, !a_hide);
-						}
-					}
-					ToggleExtraParts(headpart->extraParts, a_root, a_slot, a_hide);
-				}
-			}
+		const auto name("EquipToggle - " + std::to_string(to_underlying(a_slot)));
+
+		if (const auto extra = a_object->GetExtraData<RE::NiBooleanExtraData>(name); extra) {
+			return extra->data;
 		}
 
-		void ToggleHeadPart(RE::NiAVObject* a_root, RE::TESNPC* a_npc, HeadPart a_type, std::uint16_t a_slot, bool a_hide)
-		{
-			if (!a_npc) {
-				return;
-			}
+		const auto newExtra = RE::NiBooleanExtraData::Create(name, a_default);
+		if (newExtra) {
+			a_object->AddExtraData(newExtra);
+		}
 
-			if (!a_root) {
-				return;
-			}
+		return a_default;
+	}
+}
 
-			auto race = a_npc->GetRace();
-			if (race) {
-				auto headPart = a_npc->GetCurrentHeadPartByType(a_type);
-				if (!headPart) {
-					headPart = race->GetHeadPartByType(a_type, a_npc->GetSex());
-				}
 
-				if (headPart) {
-					if (auto node = a_root->GetObjectByName(headPart->formEditorID); node) {
-						if (auto shape = node->AsDynamicTriShape(); shape) {
-							shape->UpdateDismemberPartion(a_slot, !a_hide);
+namespace Manager
+{
+	void ToggleDecal(RE::NiAVObject* a_root, RE::NiAVObject* a_node, bool a_hide)
+	{
+		const auto decalNode = netimmerse_cast<RE::BGSDecalNode*>(a_root->GetObjectByName(RE::FixedStrings::GetSingleton()->skinnedDecalNode));
+		if (decalNode) {
+			RE::BSVisit::TraverseScenegraphGeometries(a_node, [&](RE::BSGeometry* a_geometry) -> RE::BSVisit::BSVisitControl {
+				for (auto& tempEffectPtr : decalNode->decals) {
+					const auto tempEffect = tempEffectPtr.get();
+					if (tempEffect) {
+						const auto geometryDecalEffect = tempEffect->As<RE::BSTempEffectGeometryDecal>();
+						if (geometryDecalEffect && geometryDecalEffect->attachedGeometry.get() == a_geometry) {
+							auto decal = geometryDecalEffect->Get3D();
+							if (decal) {
+								decal->ToggleNode(a_hide);
+							}
 						}
 					}
-					ToggleExtraParts(headPart->extraParts, a_root, a_slot, a_hide);
 				}
-			}
+				return RE::BSVisit::BSVisitControl::kContinue;
+			});
 		}
 	}
 
-	void ToggleSlots(RE::TESNPC* a_npc, RE::BipedAnim* a_biped, RE::NiAVObject* a_root, const SlotData& a_slots, bool a_hide)
+	void ToggleSlots(RE::Actor* a_actor, RE::BipedAnim* a_biped, RE::NiAVObject* a_root, const std::set<Biped>& a_slots, bool a_hide)
 	{
-		if (!a_npc) {
+		if (!a_actor || !a_root) {
 			return;
 		}
 
-		if (!a_root) {
-			return;
-		}
-
-		auto task = SKSE::GetTaskInterface();
-		for (auto& slot : a_slots.second) {
-			auto object = a_biped->objects[slot];
-			auto node = object.partClone.get();
-			if (node) {
-				task->AddTask([node, slot, a_biped, a_npc, a_root, a_hide]() {
+		const auto task = SKSE::GetTaskInterface();
+		task->AddTask([a_biped, a_slots, a_actor, a_root, a_hide]() {
+			for (auto& slot : a_slots) {
+				auto object = a_biped->objects[slot];
+				auto node = object.partClone.get();
+				if (node) {
 					node->ToggleNode(a_hide);
-					switch (slot) {
-					case RE::BIPED_OBJECT::kHead:
-						{
-							if (auto face = a_root->GetObjectByName(RE::FixedStrings::GetSingleton()->bsFaceGenNiNodeSkinned); face) {
-								face->SetAppCulled(!a_hide);
-								HAIR::ToggleHair(a_root, a_npc, !a_hide);
-								HEAD::ToggleHeadPart(a_root, a_npc, HeadPart::kFace, 143, !a_hide);
+					if (slot < Biped::kEditorTotal) {
+						if (const auto parent = node->parent; parent) {
+							ToggleDecal(parent, node, a_hide);
+						}
+						switch (slot) {
+						case Biped::kHead:
+						case Biped::kHair:
+						case Biped::kLongHair:
+						case Biped::kCirclet:
+						case Biped::kEars:
+						case Biped::kDecapitateHead:
+							{
+								Dismemberment::Update(a_actor, a_root, object.addon, HeadPart::kFace, a_hide);
+								Dismemberment::Update(a_actor, a_root, object.addon, HeadPart::kHair, a_hide);
 							}
+							break;
+						default:
+							break;
 						}
-						break;
-					case RE::BIPED_OBJECT::kHair:
-					case RE::BIPED_OBJECT::kLongHair:
-						{
-							if (auto face = a_root->GetObjectByName(RE::FixedStrings::GetSingleton()->bsFaceGenNiNodeSkinned); face) {
-								a_hide ? face->SetAppCulled(!a_hide) : face->SetAppCulled(a_hide);
-								HAIR::ToggleHair(a_root, a_npc, !a_hide);
-								HEAD::ToggleHeadPart(a_root, a_npc, HeadPart::kFace, 143, !a_hide);
+					}
+				}
+			}
+		});
+	}
+
+	void ToggleSlots(RE::Actor* a_actor, RE::BipedAnim* a_biped, RE::NiAVObject* a_root, const SlotData& a_slotData)
+	{
+		if (!a_actor || !a_root) {
+			return;
+		}
+
+		const auto task = SKSE::GetTaskInterface();
+		task->AddTask([a_biped, a_slotData, a_actor, a_root]() {
+			auto& [autoToggle, slots] = a_slotData;
+			for (auto& slot : slots) {
+				const auto hiddenState = SlotManager::GetData(a_root, slot, autoToggle);
+				SlotManager::SetData(a_root, slot, !hiddenState);
+
+				auto object = a_biped->objects[slot];
+				auto node = object.partClone.get();
+				if (node) {
+					node->ToggleNode(!hiddenState);
+					if (slot < Biped::kEditorTotal) {
+						if (const auto parent = node->parent; parent) {
+							ToggleDecal(parent, node, !hiddenState);
+						}
+						switch (slot) {
+						case Biped::kHead:
+						case Biped::kHair:
+						case Biped::kLongHair:
+						case Biped::kCirclet:
+						case Biped::kEars:
+						case Biped::kDecapitateHead:
+							{
+								Dismemberment::Update(a_actor, a_root, object.addon, HeadPart::kFace, !hiddenState);
+								Dismemberment::Update(a_actor, a_root, object.addon, HeadPart::kHair, !hiddenState);
 							}
+							break;
+						default:
+							break;
 						}
-						break;
-					default:
-						break;
 					}
-				});
+				}
 			}
-		}
+		});
 	}
 
-	void ToggleActorEquipment(RE::Actor* a_actor, bool a_hide)
+	void ToggleActorEquipment(RE::Actor* a_actor, const bool a_hide)
 	{
-		auto biped = a_actor->biped.get();
+		const auto biped = a_actor->GetCurrentBiped().get();
 		if (biped) {
-			for (auto& [key, armorSlot] : armorSlots) {
-				armorSlot.first = a_hide;
-				ToggleSlots(a_actor->GetActorBase(), biped, a_actor->Get3D(0), armorSlot, a_hide);
-				ToggleSlots(a_actor->GetActorBase(), biped, a_actor->Get3D(1), armorSlot, a_hide);
+			std::array<RE::NiAVObject*, 2> skeletonRoot = { a_actor->Get3D(true), a_actor->Get3D(false) };
+			if (skeletonRoot[0] == skeletonRoot[1]) {
+				skeletonRoot[1] = nullptr;
 			}
-			for (auto& [key, weaponSlot] : weaponSlots) {
-				weaponSlot.first = a_hide;
-				ToggleSlots(a_actor->GetActorBase(), biped, a_actor->Get3D(0), weaponSlot, a_hide);
-				ToggleSlots(a_actor->GetActorBase(), biped, a_actor->Get3D(1), weaponSlot, a_hide);
+
+			for (auto& [key, armorData] : armorSlots) {
+				auto& [autoToggle, slots] = armorData;
+
+				for (auto& skeleton : skeletonRoot) {
+					if (skeleton) {
+						for (auto& slot : slots) {
+							SlotManager::SetData(skeleton, slot, a_hide);
+						}
+						ToggleSlots(a_actor, biped, skeleton, slots, a_hide);
+					}
+				}
+			}
+
+			for (auto& [key, weaponData] : weaponSlots) {
+				auto& [autoToggle, slots] = weaponData;
+
+				for (auto& skeleton : skeletonRoot) {
+					if (skeleton) {
+						for (auto& slot : slots) {
+							SlotManager::SetData(skeleton, slot, a_hide);
+						}
+						ToggleSlots(a_actor, biped, skeleton, slots, a_hide);
+					}
+				}
 			}
 		}
 	}
 
-	void ToggleActorEquipment(RE::Actor* a_actor, const SlotData& a_slots, bool a_hide)
+	void ToggleActorEquipment(RE::Actor* a_actor, const SlotData& a_slotData)
 	{
-		auto biped = a_actor->biped.get();
+		const auto biped = a_actor->GetCurrentBiped().get();
 		if (biped) {
-			ToggleSlots(a_actor->GetActorBase(), biped, a_actor->Get3D(0), a_slots, a_hide);
-			ToggleSlots(a_actor->GetActorBase(), biped, a_actor->Get3D(1), a_slots, a_hide);
+			std::array<RE::NiAVObject*, 2> skeletonRoot = { a_actor->Get3D(false), a_actor->Get3D(true) };
+			if (skeletonRoot[0] == skeletonRoot[1]) {
+				skeletonRoot[1] = nullptr;
+			}
+
+			for (auto& skeleton : skeletonRoot) {
+				ToggleSlots(a_actor, biped, skeleton, a_slotData);
+			}
 		}
 	}
 
-	void ToggleFollowerEquipment(bool a_hide)
+	void ToggleFollowerEquipment(const bool a_hide)
 	{
 		auto processList = RE::ProcessLists::GetSingleton();
 		if (processList) {
 			for (auto& handle : processList->highActorHandles) {
 				auto actorPtr = handle.get();
-				auto actor = actorPtr.get();
+				const auto actor = actorPtr.get();
 				if (actor && actor->IsPlayerTeammate() && actor->HasKeyword(NPC)) {
-					auto biped = actor->biped.get();
-					if (biped) {
-						for (auto& [key, armorSlot] : armorSlots) {
-							armorSlot.first = a_hide;
-							ToggleSlots(actor->GetActorBase(), biped, actor->Get3D(), armorSlot, a_hide);
+					const auto biped = actor->GetCurrentBiped().get();
+					const auto root = actor->Get3D(false);
+					if (biped && root) {
+						for (auto& [key, armorData] : armorSlots) {
+							auto& [autoToggle, slots] = armorData;
+							for (auto& slot : slots) {
+								SlotManager::SetData(root, slot, a_hide);
+							}
+							ToggleSlots(actor, biped, actor->Get3D(false), slots, a_hide);
 						}
-						for (auto& [key, weaponSlot] : weaponSlots) {
-							weaponSlot.first = a_hide;
-							ToggleSlots(actor->GetActorBase(), biped, actor->Get3D(), weaponSlot, a_hide);
+						for (auto& [key, weaponData] : weaponSlots) {
+							auto& [autoToggle, slots] = weaponData;
+							for (auto& slot : slots) {
+								SlotManager::SetData(root, slot, a_hide);
+							}
+							ToggleSlots(actor, biped, actor->Get3D(false), slots, a_hide);
 						}
 					}
 				}
@@ -266,56 +275,17 @@ namespace
 		}
 	}
 
-	void ToggleFollowerEquipment(const SlotData& a_slots, bool a_hide)
+	void ToggleFollowerEquipment(const SlotData& a_slotData)
 	{
 		auto processList = RE::ProcessLists::GetSingleton();
 		if (processList) {
 			for (auto& handle : processList->highActorHandles) {
 				auto actorPtr = handle.get();
-				auto actor = actorPtr.get();
+				const auto actor = actorPtr.get();
 				if (actor && actor->IsPlayerTeammate() && actor->HasKeyword(NPC)) {
-					auto biped = actor->biped.get();
+					const auto biped = actor->GetCurrentBiped().get();
 					if (biped) {
-						ToggleSlots(actor->GetActorBase(), biped, actor->Get3D(), a_slots, a_hide);
-					}
-				}
-			}
-		}
-	}
-
-	void ToggleNPCEquipment(bool a_hide)
-	{
-		auto processList = RE::ProcessLists::GetSingleton();
-		if (processList) {
-			for (auto& handle : processList->highActorHandles) {
-				auto actorPtr = handle.get();
-				auto actor = actorPtr.get();
-				if (actor && actor->HasKeyword(NPC)) {
-					auto biped = actor->biped.get();
-					if (biped) {
-						for (auto& [key, armorSlot] : armorSlots) {
-							ToggleSlots(actor->GetActorBase(), biped, actor->Get3D(), armorSlot, a_hide);
-						}
-						for (auto& [key, weaponSlot] : weaponSlots) {
-							ToggleSlots(actor->GetActorBase(), biped, actor->Get3D(), weaponSlot, a_hide);
-						}
-					}
-				}
-			}
-		}
-	}
-
-	void ToggleNPCEquipment(const SlotData& a_slots, bool a_hide)
-	{
-		auto processList = RE::ProcessLists::GetSingleton();
-		if (processList) {
-			for (auto& handle : processList->highActorHandles) {
-				auto actorPtr = handle.get();
-				auto actor = actorPtr.get();
-				if (actor && actor->HasKeyword(NPC)) {
-					auto biped = actor->biped.get();
-					if (biped) {
-						ToggleSlots(actor->GetActorBase(), biped, actor->Get3D(), a_slots, a_hide);
+						ToggleSlots(actor, biped, actor->Get3D(false), a_slotData);
 					}
 				}
 			}
@@ -323,7 +293,57 @@ namespace
 	}
 }
 
-//ARMOR ATTACH
+
+namespace SaveManager
+{
+	class Reset
+	{
+	public:
+		static void Hook()
+		{
+			auto& trampoline = SKSE::GetTrampoline();
+
+			REL::Relocation<std::uintptr_t> ActorInitLoadGame{ REL::ID(36643) };
+			_GetNiNode = trampoline.write_call<5>(ActorInitLoadGame.address() + 0x119, GetNiNode);
+		}
+	private:
+		static RE::NiAVObject* GetNiNode(RE::Actor* a_actor)
+		{
+			const auto root = _GetNiNode(a_actor);
+
+			if (a_actor && CanToggleActorEquipment(a_actor))
+			{
+				logger::info("resetting {}", a_actor->GetName());
+
+				if (root) {
+					for (auto& [key, armorData] : armorSlots) {
+						auto& [autoToggle, slots] = armorData;
+						for (auto& slot : slots) {
+							SlotManager::SetData(root, slot, autoToggle);
+						}
+					}
+					for (auto& [key, weaponData] : weaponSlots) {
+						auto& [autoToggle, slots] = weaponData;
+						for (auto& slot : slots) {
+							SlotManager::SetData(root, slot, autoToggle);
+						}
+					}
+				}								
+			}
+
+			return root;
+		}
+		static inline REL::Relocation<decltype(GetNiNode)> _GetNiNode;
+		
+	};
+
+	void Install()
+	{
+		Reset::Hook();
+	}
+}
+
+
 namespace Attach
 {
 	class Armor
@@ -331,39 +351,133 @@ namespace Attach
 	public:
 		static void Hook()
 		{
-			REL::Relocation<std::uintptr_t> AttachArmorAddon{ REL::ID(15501) };
-
 			auto& trampoline = SKSE::GetTrampoline();
-			_ProcessAttachedBiped = trampoline.write_call<5>(AttachArmorAddon.address() + 0xD53, ProcessAttachedBiped);
+			REL::Relocation<std::uintptr_t> AttachGeometry{ REL::ID(15535) };
+			_ProcessGeometry = trampoline.write_call<5>(AttachGeometry.address() + 0x79A, ProcessGeometry);
+
+			REL::Relocation<std::uintptr_t> AttachArmorAddon{ REL::ID(15501) };
+			_ProcessObject = trampoline.write_call<5>(AttachArmorAddon.address() + 0x1EA, ProcessObject);  //armor2
 		}
 
 	private:
-		static void ProcessAttachedBiped(RE::BipedAnim* a_biped, std::int32_t a_slot, RE::TESObjectREFR* a_ref)
+		static void ProcessGeometry(RE::BipedAnim* a_biped, RE::BSGeometry* a_object, RE::BSDismemberSkinInstance* a_dismemberInstance, std::int32_t a_slot, bool a_unk05)
 		{
-			_ProcessAttachedBiped(a_biped, a_slot, a_ref);
+			_ProcessGeometry(a_biped, a_object, a_dismemberInstance, a_slot, a_unk05);
 
-			auto slot = static_cast<Biped>(a_slot);
-			auto [contains, hidden] = slot < Biped::kEditorTotal ? GetSlotInfo(armorSlots, [&](auto a_slot) { return a_slot == slot; }) : GetSlotInfo(weaponSlots, [&](auto a_slot) { return a_slot == slot; });
+			if (a_biped && a_object) {
+				const auto refPtr = a_biped->actorRef.get();
+				const auto ref = refPtr.get();
 
-			if (!contains) {
-				return;
-			}
-
-			if (a_biped && a_ref) {
-				auto actor = a_ref->As<RE::Actor>();
-				if (!actor || !CanToggleActorEquipment(actor)) {
-					return;
-				}
-				if (hidden) {
-					auto biped = a_biped->objects[slot];
-					auto node = biped.partClone.get();
-					if (node) {
-						node->ToggleNode(true);
+				if (ref) {
+					const auto actor = ref->As<RE::Actor>();
+					if (actor && CanToggleActorEquipment(actor)) {
+						auto slot = static_cast<Biped>(a_slot);
+						const auto root = actor->GetCurrent3D();
+						if (root) {
+							auto [contains, autoToggle, matchingSlot] = GetSlotInfo(armorSlots, [&](const auto& b_slot) { return b_slot == slot; });
+							if (contains && autoToggle && SlotManager::GetData(root, slot, autoToggle)) {
+								a_object->ToggleNode(true);
+							}
+						}
 					}
 				}
 			}
 		}
-		static inline REL::Relocation<decltype(ProcessAttachedBiped)> _ProcessAttachedBiped;
+		static inline REL::Relocation<decltype(ProcessGeometry)> _ProcessGeometry;
+
+		static void ProcessObject(RE::BipedAnim* a_biped, RE::NiAVObject* a_object, std::int32_t a_slot, bool a_unk04)
+		{
+			using ShaderType = RE::BSShaderMaterial::Feature;
+
+			_ProcessObject(a_biped, a_object, a_slot, a_unk04);
+
+			if (a_biped && a_object) {
+				const auto refPtr = a_biped->actorRef.get();
+				const auto ref = refPtr.get();
+
+				if (ref) {
+					const auto actor = ref->As<RE::Actor>();
+					if (actor && CanToggleActorEquipment(actor)) {
+						auto slot = static_cast<Biped>(a_slot);
+						const auto root = actor->GetCurrent3D();
+						if (root) {
+							auto [contains, autoToggle, matchingSlot] = GetSlotInfo(armorSlots, [&](const auto& b_slot) { return b_slot == slot; });
+							if (contains && SlotManager::GetData(root, slot, autoToggle)) {
+								a_object->ToggleNode(true);
+							}
+						}
+					}
+				}
+			}
+		}
+		static inline REL::Relocation<decltype(ProcessObject)> _ProcessObject;
+	};
+
+	class Weapon
+	{
+	public:
+		static void Hook()
+		{
+			REL::Relocation<std::uintptr_t> AttachWeapon{ REL::ID(15506) };
+			auto& trampoline = SKSE::GetTrampoline();
+
+			switch (automaticToggleVal) {
+			case 0:
+				_AttachWeaponToActor_Player = trampoline.write_call<5>(AttachWeapon.address() + 0x17F, AttachWeaponToActor_Player);
+				break;
+			case 1:
+				_AttachWeaponToActor_NPC = trampoline.write_call<5>(AttachWeapon.address() + 0x1D0, AttachWeaponToActor_NPC);
+				break;
+			case 2:
+			case 3:
+				{
+					_AttachWeaponToActor_Player = trampoline.write_call<5>(AttachWeapon.address() + 0x17F, AttachWeaponToActor_Player);
+					_AttachWeaponToActor_NPC = trampoline.write_call<5>(AttachWeapon.address() + 0x1D0, AttachWeaponToActor_NPC);
+				}
+				break;
+			default:
+				break;
+			}
+		}
+
+	private:
+		static RE::NiAVObject* AttachWeaponToActor_Player(RE::TESModel* a_model, std::int32_t a_slot, RE::TESObjectREFR* a_ref, RE::BipedAnim** a_biped, RE::NiAVObject* a_root3D)
+		{
+			const auto object = _AttachWeaponToActor_Player(a_model, a_slot, a_ref, a_biped, a_root3D);
+
+			if (a_ref && a_root3D && object) {
+				const auto actor = a_ref->As<RE::Actor>();
+				if (actor && CanToggleActorEquipment(actor)) {
+					auto slot = static_cast<Biped>(a_slot);
+					auto [contains, autoToggle, matchingSlot] = GetSlotInfo(weaponSlots, [&](const auto& b_slot) { return b_slot == slot; });
+					if (contains && SlotManager::GetData(a_root3D, slot, autoToggle)) {
+						object->ToggleNode(true);
+					}
+				}
+			}
+
+			return object;
+		}
+		static inline REL::Relocation<decltype(AttachWeaponToActor_Player)> _AttachWeaponToActor_Player;
+
+		static RE::NiAVObject* AttachWeaponToActor_NPC(RE::TESModel* a_model, std::int32_t a_slot, RE::TESObjectREFR* a_ref, RE::BipedAnim** a_biped, RE::NiAVObject* a_root3D)
+		{
+			const auto object = _AttachWeaponToActor_NPC(a_model, a_slot, a_ref, a_biped, a_root3D);
+
+			if (a_ref && a_root3D && object) {
+				const auto actor = a_ref->As<RE::Actor>();
+				if (actor && CanToggleActorEquipment(actor)) {
+					auto slot = static_cast<Biped>(a_slot);
+					auto [contains, autoToggle, matchingSlot] = GetSlotInfo(weaponSlots, [&](const auto& b_slot) { return b_slot == slot; });
+					if (contains && SlotManager::GetData(a_root3D, slot, autoToggle)) {
+						object->ToggleNode(true);
+					}
+				}
+			}
+
+			return object;
+		}
+		static inline REL::Relocation<decltype(AttachWeaponToActor_NPC)> _AttachWeaponToActor_NPC;
 	};
 
 	class HeadHair
@@ -376,34 +490,42 @@ namespace Attach
 			REL::Relocation<std::uintptr_t> UpdateHairAndHead{ REL::ID(24220) };
 			_GetRootNode = trampoline.write_call<5>(UpdateHairAndHead.address() + 0x1A, GetRootNode);
 
-			REL::Relocation<std::uintptr_t> ProcessHeadSlot{ REL::ID(15539) };
-			_UpdateDismemberPartion = trampoline.write_call<5>(ProcessHeadSlot.address() + 0x70, UpdateDismemberPartion);  //second hair related dismemberment function
+			REL::Relocation<std::uintptr_t> ProcessArmorDismemberment{ REL::ID(15539) };
+			_UpdateDismemberPartion = trampoline.write_call<5>(ProcessArmorDismemberment.address() + 0x70, UpdateDismemberPartion);	 //armor dismemberment function
 		}
 
 	private:
-		static RE::NiAVObject* GetRootNode(RE::Actor* a_actor)
+		static auto GetRootNode(RE::Actor* a_actor) -> RE::NiAVObject*
 		{
-			if (a_actor && CanToggleActorEquipment(a_actor)) {
-				auto [contains, hidden] = GetSlotInfo(armorSlots, [&](auto a_slot) { return a_slot == Biped::kHead || a_slot == Biped::kHair || a_slot == Biped::kLongHair; });
-				if (hidden) {
+			const auto root = _GetRootNode(a_actor);
+
+			if (a_actor && root && CanToggleActorEquipment(a_actor)) {
+				auto [contains, autoToggle, matchingSlot] = GetSlotInfo(armorSlots, [&](auto a_slot) { return a_slot == Biped::kHead || a_slot == Biped::kHair || a_slot == Biped::kLongHair; });
+				if (contains && SlotManager::GetData(root, matchingSlot, autoToggle)) {
+					Dismemberment::UpdateHair(a_actor, a_actor->Get3D(false), true);
 					return nullptr;
 				}
 			}
 
-			return _GetRootNode(a_actor);
+			return root;
 		}
 		static inline REL::Relocation<decltype(GetRootNode)> _GetRootNode;
 
 
 		static void UpdateDismemberPartion(RE::BipedAnim* a_biped, RE::NiAVObject* a_geometry, std::uint32_t a_slot)
 		{
-			auto refPtr = a_biped->actorRef.get();
-			if (auto ref = refPtr.get(); ref) {
-				auto actor = ref->As<RE::Actor>();
-				if (actor && CanToggleActorEquipment(actor)) {
-					auto [contains, hidden] = GetSlotInfo(armorSlots, [&](auto a_slot) { return a_slot == Biped::kHead || a_slot == Biped::kHair || a_slot == Biped::kLongHair; });
-					if (hidden) {
-						return;
+			if (a_biped) {
+				const auto refPtr = a_biped->actorRef.get();
+				if (auto ref = refPtr.get(); ref) {
+					const auto actor = ref->As<RE::Actor>();
+					if (actor && CanToggleActorEquipment(actor)) {
+						auto slot = static_cast<Biped>(a_slot);
+						const auto root = actor->GetCurrent3D();
+						auto [contains, autoToggle, matchingSlot] = GetSlotInfo(armorSlots, [&slot](const auto& b_slot) { return b_slot == slot; });
+						if (contains && root && SlotManager::GetData(root, slot, autoToggle)) {
+							Dismemberment::UpdateArmor(actor, a_geometry, a_slot, true);
+							return;
+						}
 					}
 				}
 			}
@@ -416,10 +538,15 @@ namespace Attach
 
 	void Install()
 	{
-		Armor::Hook();
+		if (!armorSlots.empty()) {
+			Armor::Hook();
+		}
+		if (!weaponSlots.empty()) {
+			Weapon::Hook();
+		}
 
-		auto state = GetSlotInfo(armorSlots, [&](auto a_slot) { return a_slot == Biped::kHead || a_slot == Biped::kHair || a_slot == Biped::kLongHair; });
-		if (state.first) {
+		auto [contains, autoToggle, hidden] = GetSlotInfo(armorSlots, [&](auto a_slot) { return a_slot == Biped::kHead || a_slot == Biped::kHair || a_slot == Biped::kLongHair; });
+		if (contains) {
 			HeadHair::Hook();
 		}
 
@@ -427,7 +554,7 @@ namespace Attach
 	}
 }
 
-//COMBAT
+
 namespace Combat
 {
 	static bool playerInCombat = false;
@@ -439,14 +566,14 @@ namespace Combat
 	public:
 		using EventResult = RE::BSEventNotifyControl;
 
-		static NPCCombat* GetSingleton()
+		static auto GetSingleton() -> NPCCombat*
 		{
 			static NPCCombat singleton;
 			return &singleton;
 		}
 
 	protected:
-		virtual EventResult ProcessEvent(const RE::TESCombatEvent* evn, RE::BSTEventSource<RE::TESCombatEvent>* a_eventSource) override
+		auto ProcessEvent(const RE::TESCombatEvent* evn, RE::BSTEventSource<RE::TESCombatEvent>* /*a_eventSource*/) -> EventResult override
 		{
 			if (!evn) {
 				return EventResult::kContinue;
@@ -457,7 +584,7 @@ namespace Combat
 				return EventResult::kContinue;
 			}
 
-			auto actor = ref->As<RE::Actor>();
+			const auto actor = ref->As<RE::Actor>();
 			if (!actor) {
 				return EventResult::kContinue;
 			}
@@ -466,12 +593,12 @@ namespace Combat
 				return EventResult::kContinue;
 			}
 
-			switch (evn->newState.get()) {
+			switch (*evn->newState) {
 			case COMBAT_STATE::kCombat:
-				ToggleActorEquipment(actor, false);
+				Manager::ToggleActorEquipment(actor, false);
 				break;
 			case COMBAT_STATE::kNone:
-				ToggleActorEquipment(actor, true);
+				Manager::ToggleActorEquipment(actor, true);
 				break;
 			default:
 				break;
@@ -486,10 +613,9 @@ namespace Combat
 		NPCCombat(NPCCombat&&) = delete;
 		virtual ~NPCCombat() = default;
 
-		NPCCombat& operator=(const NPCCombat&) = delete;
-		NPCCombat& operator=(NPCCombat&&) = delete;
+		auto operator=(const NPCCombat&) -> NPCCombat& = delete;
+		auto operator=(NPCCombat&&) -> NPCCombat& = delete;
 	};
-
 
 	class PlayerCombat
 	{
@@ -501,18 +627,18 @@ namespace Combat
 		}
 
 	private:
-		static bool IsInCombat(RE::PlayerCharacter* a_this)
+		static auto IsInCombat(RE::PlayerCharacter* a_this) -> bool
 		{
-			auto result = _IsInCombat(a_this);
+			const auto result = _IsInCombat(a_this);
 			if (result) {
 				if (!playerInCombat && a_this) {
 					playerInCombat = true;
-					ToggleActorEquipment(a_this, false);
+					Manager::ToggleActorEquipment(a_this, false);
 				}
 			} else {
 				if (playerInCombat && a_this) {
 					playerInCombat = false;
-					ToggleActorEquipment(a_this, true);
+					Manager::ToggleActorEquipment(a_this, true);
 				}
 			}
 			return result;
@@ -528,27 +654,29 @@ namespace Combat
 		if (automaticToggleVal != 1) {
 			PlayerCombat::Install();
 			logger::info("Registered for player combat (unhide during combat)");
-		}				
+		}
 		if (automaticToggleVal != 0) {
 			auto srcHolder = RE::ScriptEventSourceHolder::GetSingleton();
 			if (srcHolder) {
-				srcHolder->AddEventSink(Combat::NPCCombat::GetSingleton());
+				srcHolder->AddEventSink(NPCCombat::GetSingleton());
 				logger::info("Registered for npc combat (unhide during combat)");
 			}
 		}
 	}
 }
 
-//LOC CHANGE
+
 namespace Location
 {
 	static bool playerInHouse = false;
 
-	bool IsCellHome(RE::TESObjectCELL* a_cell)
+	auto IsCellHome(RE::TESObjectCELL* a_cell) -> bool
 	{
-		auto loc = a_cell->GetLocation();
-		if (loc && (loc->HasKeywordString(PlayerHome) || loc->HasKeywordString(Inn))) {
-			return true;
+		if (a_cell->IsInteriorCell()) {
+			const auto loc = a_cell->GetLocation();
+			if (loc && (loc->HasKeywordString(PlayerHome) || loc->HasKeywordString(Inn))) {
+				return true;
+			}
 		}
 
 		return false;
@@ -559,14 +687,14 @@ namespace Location
 	public:
 		using EventResult = RE::BSEventNotifyControl;
 
-		static LocChange* GetSingleton()
+		static auto GetSingleton() -> LocChange*
 		{
 			static LocChange singleton;
 			return &singleton;
 		}
 
 	protected:
-		virtual EventResult ProcessEvent(const RE::BGSActorCellEvent* a_evn, RE::BSTEventSource<RE::BGSActorCellEvent>* a_eventSource) override
+		auto ProcessEvent(const RE::BGSActorCellEvent* a_evn, RE::BSTEventSource<RE::BGSActorCellEvent>* /*a_eventSource*/) -> EventResult override
 		{
 			using CellFlag = RE::BGSActorCellEvent::CellFlag;
 
@@ -574,61 +702,56 @@ namespace Location
 				return EventResult::kContinue;
 			}
 
-			auto cell = RE::TESForm::LookupByID<RE::TESObjectCELL>(a_evn->cellID);
+			const auto playerPtr = a_evn->actor.get();
+			const auto player = playerPtr.get();
+
+			if (!player) {
+				return EventResult::kContinue;
+			}
+
+			const auto cell = RE::TESForm::LookupByID<RE::TESObjectCELL>(a_evn->cellID);
 			if (!cell) {
 				return EventResult::kContinue;
 			}
 
-			auto player = RE::PlayerCharacter::GetSingleton();
-			if (player) {
-				if (IsCellHome(cell)) {
-					playerInHouse = true;
-					switch (automaticToggleVal) {
-					case 0:
-						ToggleActorEquipment(player, playerInHouse);
-						break;
-					case 1:
-						ToggleFollowerEquipment(playerInHouse);
-						break;
-					case 2:
-						{
-							ToggleActorEquipment(player, playerInHouse);
-							ToggleFollowerEquipment(playerInHouse);
-						}
-						break;
-					case 3:
-						{
-							ToggleActorEquipment(player, playerInHouse);
-							ToggleNPCEquipment(playerInHouse);
-						}						
-						break;
-					default:
-						break;
+			if (IsCellHome(cell)) {
+				playerInHouse = true;
+
+				switch (automaticToggleVal) {
+				case 0:
+					Manager::ToggleActorEquipment(player, playerInHouse);
+					break;
+				case 1:
+					Manager::ToggleFollowerEquipment(playerInHouse);
+					break;
+				case 2:
+					{
+						Manager::ToggleActorEquipment(player, playerInHouse);
+						Manager::ToggleFollowerEquipment(playerInHouse);
 					}
-				} else if (playerInHouse) {
-					playerInHouse = false;
-					switch (automaticToggleVal) {
-					case 0:
-						ToggleActorEquipment(player, playerInHouse);
-						break;
-					case 1:
-						ToggleFollowerEquipment(playerInHouse);
-						break;
-					case 2:
-						{
-							ToggleActorEquipment(player, playerInHouse);
-							ToggleFollowerEquipment(playerInHouse);
-						}
-						break;
-					case 3:
-						{
-							ToggleActorEquipment(player, playerInHouse);
-							ToggleNPCEquipment(playerInHouse);
-						}
-						break;
-					default:
-						break;
+					break;
+				default:
+					break;
+				}
+
+			} else if (playerInHouse) {
+				playerInHouse = false;
+
+				switch (automaticToggleVal) {
+				case 0:
+					Manager::ToggleActorEquipment(player, playerInHouse);
+					break;
+				case 1:
+					Manager::ToggleFollowerEquipment(playerInHouse);
+					break;
+				case 2:
+					{
+						Manager::ToggleActorEquipment(player, playerInHouse);
+						Manager::ToggleFollowerEquipment(playerInHouse);
 					}
+					break;
+				default:
+					break;
 				}
 			}
 
@@ -641,58 +764,50 @@ namespace Location
 		LocChange(LocChange&&) = delete;
 		virtual ~LocChange() = default;
 
-		LocChange& operator=(const LocChange&) = delete;
-		LocChange& operator=(LocChange&&) = delete;
+		auto operator=(const LocChange&) -> LocChange& = delete;
+		auto operator=(LocChange&&) -> LocChange& = delete;
 	};
 
 
 	void Install()
 	{
-		auto player = RE::PlayerCharacter::GetSingleton();
-		if (player) {
-			player->AddEventSink(Location::LocChange::GetSingleton());
+		if (auto player = RE::PlayerCharacter::GetSingleton(); player) {
+			player->AddEventSink(LocChange::GetSingleton());
 			logger::info("registered for location change (hide at home)");
 		}
 	}
 }
 
-//HOTKEY
-namespace Toggle
-{
-	bool ProcessKey(Key a_key, SlotKeyVec& a_armor, SlotKeyVec& a_weapon, std::function<void(SlotData& a_slots)> a_func)
-	{
-		bool result = false;
 
-		for (auto& data : a_armor) {
-			auto& [key, slots] = data;
+namespace Hotkey
+{
+	auto ProcessKey(const Key a_key, SlotKeyVec& a_armor, SlotKeyVec& a_weapon, std::function<void(SlotData& a_slots)> a_func) -> bool
+	{
+		auto result = false;
+
+		for (auto& [key, data] : a_armor) {
 			if (key == a_key) {
 				result = true;
-				slots.first = !slots.first;
-				a_func(slots);
+				a_func(data);
 				break;
 			}
 		}
 
-		if (!result) {
-			for (auto& data : a_weapon) {
-				auto& [key, slots] = data;
-				if (key == a_key) {
-					result = true;
-					slots.first = !slots.first;
-					a_func(slots);
-					break;
-				}
+		for (auto& [key, data] : a_weapon) {
+			if (key == a_key) {
+				result = true;
+				a_func(data);
+				break;
 			}
 		}
 
 		return result;
 	}
 
-
 	class InputHandler : public RE::BSTEventSink<RE::InputEvent*>
 	{
 	public:
-		static InputHandler* GetSingleton()
+		static auto GetSingleton() -> InputHandler*
 		{
 			static InputHandler singleton;
 			return &singleton;
@@ -701,12 +816,12 @@ namespace Toggle
 	protected:
 		using EventResult = RE::BSEventNotifyControl;
 
-		EventResult ProcessEvent(RE::InputEvent* const* a_event, RE::BSTEventSource<RE::InputEvent*>*) override
+		auto ProcessEvent(RE::InputEvent* const* a_event, RE::BSTEventSource<RE::InputEvent*>*) -> EventResult override
 		{
 			using InputType = RE::INPUT_EVENT_TYPE;
 			using Keyboard = RE::BSWin32KeyboardDevice::Key;
 
-			if (!a_event) {
+			if (!a_event || RE::UI::IsInMenuMode() || !RE::PlayerCharacter::GetSingleton()->Is3DLoaded()) {
 				return EventResult::kContinue;
 			}
 
@@ -720,25 +835,20 @@ namespace Toggle
 					continue;
 				}
 
-				auto key = static_cast<Key>(button->idCode);
-				ProcessKey(key, armorSlots, weaponSlots, [&](const auto& a_slots) {
+				const auto key = static_cast<Key>(button->idCode);
+				ProcessKey(key, armorSlots, weaponSlots, [&](auto& a_slotData) {
 					switch (hotkeyToggleVal) {
 					case 0:
-						ToggleActorEquipment(RE::PlayerCharacter::GetSingleton(), a_slots, a_slots.first);
+						Manager::ToggleActorEquipment(RE::PlayerCharacter::GetSingleton(), a_slotData);
 						break;
 					case 1:
-						ToggleFollowerEquipment(a_slots, a_slots.first);
+						Manager::ToggleFollowerEquipment(a_slotData);
 						break;
 					case 2:
-						{
-							ToggleActorEquipment(RE::PlayerCharacter::GetSingleton(), a_slots.first);
-							ToggleFollowerEquipment(a_slots, a_slots.first);
-						}
-						break;
 					case 3:
 						{
-							ToggleActorEquipment(RE::PlayerCharacter::GetSingleton(), a_slots.first);
-							ToggleNPCEquipment(a_slots, a_slots.first);
+							Manager::ToggleActorEquipment(RE::PlayerCharacter::GetSingleton(), a_slotData);
+							Manager::ToggleFollowerEquipment(a_slotData);
 						}
 						break;
 					default:
@@ -756,8 +866,8 @@ namespace Toggle
 		InputHandler(InputHandler&&) = delete;
 		virtual ~InputHandler() = default;
 
-		InputHandler& operator=(const InputHandler&) = delete;
-		InputHandler& operator=(InputHandler&&) = delete;
+		auto operator=(const InputHandler&) -> InputHandler& = delete;
+		auto operator=(InputHandler&&) -> InputHandler& = delete;
 	};
 
 
@@ -765,13 +875,13 @@ namespace Toggle
 	{
 		auto inputHolder = RE::BSInputDeviceManager::GetSingleton();
 		if (inputHolder) {
-			inputHolder->AddEventSink(Toggle::InputHandler::GetSingleton());
+			inputHolder->AddEventSink(InputHandler::GetSingleton());
 			logger::info("Registered input sink (toggle)");
 		}
 	}
 }
 
-//INI
+
 namespace INI
 {
 	namespace STRING = SKSE::UTIL::STRING;
@@ -811,27 +921,40 @@ namespace INI
 		{ 61, Biped::kFX01 },
 	};
 
-
-	std::optional<SlotKeyData> GetArmorINIData(const std::string& a_value)
+	auto GetArmorINIData(const std::string& a_value) -> std::optional<SlotKeyData>
 	{
-		auto sections = STRING::split(a_value, " | ");
+		auto sections = STRING::split(a_value, "|");
 		if (sections.empty()) {
 			return std::nullopt;
 		}
 
-		Key key = Key::kNone;
+		for (auto& str : sections) {
+			STRING::trim(str);
+		}
+
+		auto key = Key::kNone;
 		try {
-			key = static_cast<Key>(STRING::to_int<std::uint32_t>(sections.at(0)));
+			auto& keyStr = sections.at(0);
+			key = static_cast<Key>(STRING::to_num<std::uint32_t>(keyStr));
 			logger::info("		Key : {}", key);
+		} catch (...) {
+		}
+
+		auto setAutoToggled = true;
+		try {
+			auto& toggle = sections.at(1);
+			setAutoToggled = toggle != "false";
+			logger::info("		Auto Toggle : {}", setAutoToggled);
 		} catch (...) {
 		}
 
 		std::set<Biped> slotSet;
 		try {
-			if (!sections.at(1).empty()) {
-				auto vec = STRING::split(sections.at(1), " , ");
+			auto& slots = sections.at(2);
+			if (!slots.empty()) {
+				auto vec = STRING::split(slots, " , ");
 				for (auto& slotStr : vec) {
-					auto slot = STRING::to_int<std::uint32_t>(slotStr);
+					auto slot = STRING::to_num<std::uint32_t>(slotStr);
 					switch (slot) {
 					case 32:
 					case 33:
@@ -840,62 +963,69 @@ namespace INI
 					case 38:
 					case 40:
 						{
-							logger::info("			armor : unreplaceable slot {}", slot);
+							logger::info("			Armor : unreplaceable slot {}", slot);
 							continue;
 						}
 					default:
 						break;
 					}
 					if (slot > 61) {
-						logger::info("			armor : invalid slot {}", slot);
+						logger::info("			Armor : invalid slot {}", slot);
 						continue;
 					}
-					logger::info("			armor : slot {}", slot);
+					logger::info("			Armor : slot {}", slot);
 					slotSet.insert(bipedMap.at(slot));
 				}
 			}
 		} catch (...) {
-			logger::error("unable to parse {}", a_value);
+			logger::error("		Slots : unable to parse {}", a_value);
 			return std::nullopt;
 		}
 
-		return std::make_pair(key, std::make_pair(automaticToggleVal != -1 ? true : false, slotSet));
+		return std::make_pair(key, std::make_pair(setAutoToggled, slotSet));
 	}
 
-
-	std::optional<SlotKeyData> GetWeaponINIData(const std::string& a_value)
+	auto GetWeaponINIData(const std::string& a_value) -> std::optional<SlotKeyData>
 	{
 		auto sections = STRING::split(a_value, " | ");
 		if (sections.empty()) {
 			return std::nullopt;
 		}
 
-		Key key = Key::kNone;
+		auto key = Key::kNone;
 		try {
-			key = static_cast<Key>(STRING::to_int<std::uint32_t>(sections.at(0)));
+			key = static_cast<Key>(STRING::to_num<std::uint32_t>(sections.at(0)));
 			logger::info("		Key : {}", key);
+		} catch (...) {
+		}
+
+		auto setAutoToggled = true;
+		try {
+			auto& toggle = sections.at(1);
+			STRING::trim(toggle);
+			setAutoToggled = toggle != "false";
+			logger::info("		Auto Toggle : {}", setAutoToggled);
 		} catch (...) {
 		}
 
 		std::set<Biped> slotSet;
 		try {
-			if (!sections.at(1).empty()) {
-				auto vec = STRING::split(sections.at(1), " , ");
+			if (!sections.at(2).empty()) {
+				auto vec = STRING::split(sections.at(2), " , ");
 				for (auto& slotStr : vec) {
-					logger::info("			weapon : slot {}", slotStr);
-					slotSet.insert(static_cast<Biped>(STRING::to_int<std::uint32_t>(slotStr)));
+					logger::info("			Weapon : slot {}", slotStr);
+					slotSet.insert(static_cast<Biped>(STRING::to_num<std::uint32_t>(slotStr)));
 				}
 			}
 		} catch (...) {
-			logger::error("unable to parse {}", a_value);
+			logger::error("		Slots : unable to parse {}", a_value);
 			return std::nullopt;
 		}
 
-		return std::make_pair(key, std::make_pair(automaticToggleVal != -1 ? true : false, slotSet));
+		return std::make_pair(key, std::make_pair(setAutoToggled, slotSet));
 	}
 
-
-	void GetDataFromINI(const CSimpleIniA& ini, const char* a_section, const char* a_type, SlotKeyVec& a_INIDataVec, bool a_armor)
+	void GetDataFromINI(const CSimpleIniA& ini, const char* a_section, const char* a_type, SlotKeyVec& a_INIDataVec, const bool a_armor)
 	{
 		CSimpleIniA::TNamesDepend values;
 		ini.GetAllValues(a_section, a_type, values);
@@ -912,31 +1042,35 @@ namespace INI
 		}
 	}
 
-	bool Read()
+	auto Read() -> bool
 	{
-		auto pluginPath = SKSE::GetPluginConfigPath("po3_EquipmentToggle");
+		try {
+			const auto pluginPath = SKSE::GetPluginConfigPath("po3_EquipmentToggle");
 
-		CSimpleIniA ini;
-		ini.SetUnicode();
-		ini.SetMultiKey();
+			CSimpleIniA ini;
+			ini.SetUnicode();
+			ini.SetMultiKey();
 
-		SI_Error rc = ini.LoadFile(pluginPath.c_str());
-		if (rc < 0) {
-			logger::error("Can't load 'po3_EquipmentToggle.ini'");
-			return false;
+			const auto rc = ini.LoadFile(pluginPath.c_str());
+			if (rc < 0) {
+				logger::error("Can't load 'po3_EquipmentToggle.ini'");
+				return false;
+			}
+
+			automaticToggleVal = STRING::to_num<std::int32_t>(ini.GetValue("Settings", "Auto Toggle Type", "0"));
+			logger::info("Auto toggle type : {}", automaticToggleVal);
+			hotkeyToggleVal = STRING::to_num<std::int32_t>(ini.GetValue("Settings", "Toggle Key Type", "0"));
+			logger::info("Hotkey toggle type : {}", hotkeyToggleVal);
+
+			autoUnequip = ini.GetBoolValue("Settings", "Hide When Equipped", true);
+			unhideDuringCombat = ini.GetBoolValue("Settings", "Unhide During Combat", false);
+			hideAtHome = ini.GetBoolValue("Settings", "Hide At Home", false);
+
+			GetDataFromINI(ini, "Armor", "Armor", armorSlots, true);
+			GetDataFromINI(ini, "Weapon", "Weapon", weaponSlots, false);
+		} catch (...) {
+			logger::error("ini failed");
 		}
-
-		automaticToggleVal = STRING::to_int<std::int32_t>(ini.GetValue("Settings", "Auto Toggle Type", "0"));
-		logger::info("Auto toggle type : {}", automaticToggleVal);
-		hotkeyToggleVal = STRING::to_int<std::int32_t>(ini.GetValue("Settings", "Toggle Key Type", "0"));
-		logger::info("Hotkey toggle type : {}", hotkeyToggleVal);
-
-		autoUnequip = ini.GetBoolValue("Settings", "Hide When Equipped", true);
-		unhideDuringCombat = ini.GetBoolValue("Settings", "Unhide During Combat", false);
-		hideAtHome = ini.GetBoolValue("Settings", "Hide At Home", false);
-
-		GetDataFromINI(ini, "Armor", "Armor", armorSlots, true);
-		GetDataFromINI(ini, "Weapon", "Weapon", weaponSlots, false);
 
 		return true;
 	}
@@ -945,8 +1079,6 @@ namespace INI
 
 void OnInit(SKSE::MessagingInterface::Message* a_msg)
 {
-	using Slot = RE::BIPED_MODEL::BipedObjectSlot;
-
 	switch (a_msg->type) {
 	case SKSE::MessagingInterface::kDataLoaded:
 		{
@@ -959,9 +1091,11 @@ void OnInit(SKSE::MessagingInterface::Message* a_msg)
 				}
 			}
 			if (hotkeyToggleVal != -1) {
-				Toggle::Install();
+				Hotkey::Install();
 			}
 		}
+		break;
+	default:
 		break;
 	}
 }
@@ -981,7 +1115,7 @@ extern "C" DLLEXPORT bool APIENTRY SKSEPlugin_Query(const SKSE::QueryInterface* 
 		log->set_level(spdlog::level::info);
 
 #endif
-		spdlog::set_default_logger(log);
+		set_default_logger(log);
 		spdlog::set_pattern("[%H:%M:%S] [%l] %v");
 
 		logger::info("Equipment Toggle {}", SOS_VERSION_VERSTRING);
@@ -1017,7 +1151,7 @@ extern "C" DLLEXPORT bool APIENTRY SKSEPlugin_Load(const SKSE::LoadInterface* a_
 	try {
 		logger::info("Equipment Toggle loaded");
 
-		SKSE::Init(a_skse);
+		Init(a_skse);
 
 		INI::Read();
 
@@ -1026,14 +1160,10 @@ extern "C" DLLEXPORT bool APIENTRY SKSEPlugin_Load(const SKSE::LoadInterface* a_
 			return false;
 		}
 
-		if (!armorSlots.empty() && !weaponSlots.empty()) {
-			logger::critical("no valid slot entries found!");
-			return false;
-		}
-
 		if (automaticToggleVal != -1) {
-			SKSE::AllocTrampoline(1 << 6);
+			SKSE::AllocTrampoline(1 << 7);
 			Attach::Install();
+			//SaveManager::Install();
 		}
 
 	} catch (const std::exception& e) {

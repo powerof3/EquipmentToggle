@@ -9,6 +9,9 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\hair.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
     <ClCompile Include="src\main.cpp">
       <Filter>src</Filter>
     </ClCompile>
@@ -20,9 +23,6 @@
     <None Include=".clang-format" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="include\main.h">
-      <Filter>include</Filter>
-    </ClInclude>
     <ClInclude Include="include\PCH.h">
       <Filter>include</Filter>
     </ClInclude>
@@ -30,5 +30,8 @@
       <Filter>include</Filter>
     </ClInclude>
     <ClInclude Include="resource.h" />
+    <ClInclude Include="src\hair.h">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

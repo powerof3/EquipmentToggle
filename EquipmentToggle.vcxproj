@@ -219,6 +219,7 @@
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="src\hair.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\PCH.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
@@ -235,10 +236,10 @@
     <None Include=".clang-format" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="include\main.h" />
     <ClInclude Include="include\PCH.h" />
     <ClInclude Include="include\version.h" />
     <ClInclude Include="resource.h" />
+    <ClInclude Include="src\hair.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\CommonLibSSE\CommonLibSSE.vcxproj">
