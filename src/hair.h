@@ -38,16 +38,16 @@ inline constexpr frozen::map<std::uint16_t, Slot, 31> slotMap = {
 class Dismemberment
 {
 public:
-	static void Update(RE::Actor* a_actor, RE::NiAVObject* a_root, RE::TESObjectARMA* a_arma, HeadPart a_type, bool a_hide);
+	static void UpdateHeadPart(RE::Actor* a_actor, RE::NiAVObject* a_root, RE::TESObjectARMA* a_arma, HeadPart a_type, bool a_hide);
 	static void UpdateHair(RE::Actor* a_actor, RE::NiAVObject* a_root, bool a_hide);
 	static void UpdateArmor(RE::Actor* a_actor, RE::NiAVObject* a_root, std::uint32_t a_slot, bool a_hide);
 
 private:
-	static std::uint32_t GetWornMask(RE::InventoryChanges* a_changes);
+	static void TogglePartition(RE::BSGeometry& a_shape, RE::TESObjectARMA& a_arma, bool a_hide);
+	static void TogglePartition(RE::BSGeometry& a_shape, RE::TESRace& a_race, bool a_hide);
+	static void TogglePartition(RE::BSGeometry& a_shape, bool a_hide);
 
-	static void TogglePartition(RE::BSGeometry* a_shape, RE::TESObjectARMA* a_arma, bool a_enable);
-	static void TogglePartition(RE::BSGeometry* a_shape, RE::TESRace* a_race, bool a_enable);
-
-	static void ToggleExtraParts(const RE::BSTArray<RE::BGSHeadPart*>& a_parts, RE::NiAVObject* a_root, RE::TESObjectARMA* a_arma, bool a_hide);
-	static void ToggleExtraParts(const RE::BSTArray<RE::BGSHeadPart*>& a_parts, RE::NiAVObject* a_root, RE::TESRace* a_race, bool a_hide);
+	static void ToggleExtraParts(const RE::BSTArray<RE::BGSHeadPart*>& a_parts, RE::NiAVObject& a_root, RE::TESObjectARMA& a_arma, bool a_hide);
+	static void ToggleExtraParts(const RE::BSTArray<RE::BGSHeadPart*>& a_parts, RE::NiAVObject& a_root, RE::TESRace& a_race, bool a_hide);
+	static void ToggleExtraParts(const RE::BSTArray<RE::BGSHeadPart*>& a_parts, RE::NiAVObject& a_root, bool a_hide);
 };
