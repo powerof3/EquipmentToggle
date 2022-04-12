@@ -2,30 +2,54 @@
 
 #include "RE/Skyrim.h"
 #include "SKSE/SKSE.h"
-#include <xbyak/xbyak.h>  // must be between these two
 
+#pragma warning(push)
+#ifdef NDEBUG
+#	include <spdlog/sinks/basic_file_sink.h>
+#else
+#	include <spdlog/sinks/msvc_sink.h>
+#endif
+#pragma warning(pop)
+
+#include <ranges>
 #include <SimpleIni.h>
 #include <frozen/map.h>
-#include <spdlog/sinks/basic_file_sink.h>
-#include <shared_mutex>
+#include <frozen/set.h>
+#include <xbyak/xbyak.h>
 
-#ifndef NDEBUG
-#include <spdlog/sinks/msvc_sink.h>
-#endif
+#define DLLEXPORT __declspec(dllexport)
+
+using namespace std::literals;
 
 namespace logger = SKSE::log;
-using namespace SKSE::util;
-using namespace std::string_view_literals;
+namespace numeric = SKSE::stl::numeric;
+namespace string = SKSE::stl::string;
 
 namespace stl
 {
-	using nonstd::span;
-	using SKSE::stl::report_and_fail;
+	using namespace SKSE::stl;
+
+	template <class T>
+	void write_thunk_call(std::uintptr_t a_src)
+	{
+		auto& trampoline = SKSE::GetTrampoline();
+		T::func = trampoline.write_call<5>(a_src, T::thunk);
+	}
+
+	template <class F, class T>
+	void write_vfunc(std::size_t a_size)
+	{
+		REL::Relocation<std::uintptr_t> vtbl{ F::VTABLE[0] };
+		T::func = vtbl.write_vfunc(a_size, T::thunk);
+	}
 }
 
-using Biped = RE::BIPED_OBJECT;
-using Slot = RE::BIPED_MODEL::BipedObjectSlot;
-using Key = RE::BSKeyboardDevice::Key;
-using HeadPart = RE::BGSHeadPart::HeadPartType;
+#ifdef SKYRIM_AE
+#	define OFFSET(se, ae) ae
+#else
+#	define OFFSET(se, ae) se
+#endif
 
-#define DLLEXPORT __declspec(dllexport)
+#include "Common.h"
+#include "Hooks.h"
+#include "Version.h"
