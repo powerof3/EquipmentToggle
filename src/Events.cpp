@@ -46,6 +46,19 @@ namespace Events
 		}
 	};
 
+	bool Manager::PlayerCombat::thunk(RE::PlayerCharacter* a_this)
+	{
+		const auto result = func(a_this);
+		if (result && !GetSingleton()->playerInCombat) {
+			GetSingleton()->playerInCombat = true;
+			Graphics::Slot::ToggleActorEquipment(a_this, true);
+		} else {
+			GetSingleton()->playerInCombat = false;
+			Graphics::Slot::ToggleActorEquipment(a_this, false);
+		}
+		return result;
+	}
+
     EventResult Manager::ProcessEvent(const RE::TESCombatEvent* evn, RE::BSTEventSource<RE::TESCombatEvent>*)
 	{
 		if (!evn || !evn->actor) {

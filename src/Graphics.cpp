@@ -145,16 +145,16 @@ namespace Graphics
 			const auto face = a_root ? a_root->GetObjectByName(RE::FixedStrings::GetSingleton()->bsFaceGenNiNodeSkinned) : nullptr;
 
 			if (face && race && a_arma) {
-				if (const auto invChanges = a_actor->GetInventoryChanges(); invChanges) {
+				if (const auto invChanges = a_actor->GetInventoryChanges()) {
 					const auto wornMask = invChanges->GetWornMask();
 					if (const auto headSlot = stl::to_underlying(*race->data.headObject); headSlot <= 31) {
 						const auto headMask = 1 << headSlot;
 						if (headMask & wornMask) {
 							face->SetAppCulled(!a_hide);
 
-							if (const auto headPart = npc->GetCurrentHeadPartByType(a_type); headPart) {
-								if (const auto node = a_root->GetObjectByName(headPart->formEditorID); node) {
-									if (const auto shape = node->AsGeometry(); shape) {
+							if (const auto headPart = npc->GetCurrentHeadPartByType(a_type)) {
+								if (const auto node = a_root->GetObjectByName(headPart->formEditorID)) {
+									if (const auto shape = node->AsGeometry()) {
 										detail::toggle_partition(*shape, a_hide);
 									}
 								}
@@ -164,9 +164,9 @@ namespace Graphics
 						} else {
 							a_hide ? face->SetAppCulled(!a_hide) : face->SetAppCulled(a_hide);
 
-							if (const auto headPart = npc->GetCurrentHeadPartByType(a_type); headPart) {
-								if (const auto node = a_root->GetObjectByName(headPart->formEditorID); node) {
-									if (const auto shape = node->AsGeometry(); shape) {
+							if (const auto headPart = npc->GetCurrentHeadPartByType(a_type)) {
+								if (const auto node = a_root->GetObjectByName(headPart->formEditorID)) {
+									if (const auto shape = node->AsGeometry()) {
 										detail::toggle_partition(*shape, *a_arma, a_hide);
 									}
 								}
@@ -185,15 +185,14 @@ namespace Graphics
 			const auto face = a_root ? a_root->GetObjectByName(RE::FixedStrings::GetSingleton()->bsFaceGenNiNodeSkinned) : nullptr;
 
 			if (face && race) {
-				if (const auto invChanges = a_actor->GetInventoryChanges(); invChanges) {
+                if (const auto invChanges = a_actor->GetInventoryChanges()) {
 					const auto wornMask = invChanges->GetWornMask();
-					const auto headSlot = stl::to_underlying(*race->data.headObject);
-					if (headSlot <= 31) {
+                    if (const auto headSlot = stl::to_underlying(*race->data.headObject); headSlot <= 31) {
 						const auto headMask = 1 << headSlot;
 						if (headMask & wornMask) {
 							face->SetAppCulled(!a_hide);
 
-							if (const auto headPart = npc->GetCurrentHeadPartByType(HeadPart::kHair); headPart) {
+                            if (const auto headPart = npc->GetCurrentHeadPartByType(HeadPart::kHair)) {
 								if (const auto node = a_root->GetObjectByName(headPart->formEditorID); node) {
 									if (const auto shape = node->AsGeometry(); shape) {
 										detail::toggle_partition(*shape, a_hide);
@@ -201,13 +200,12 @@ namespace Graphics
 								}
 								detail::toggle_extra_parts(headPart->extraParts, *a_root, a_hide);
 							}
-
 						} else {
 							a_hide ? face->SetAppCulled(!a_hide) : face->SetAppCulled(a_hide);
 
-							if (const auto headPart = npc->GetCurrentHeadPartByType(HeadPart::kHair); headPart) {
-								if (const auto node = a_root->GetObjectByName(headPart->formEditorID); node) {
-									if (const auto shape = node->AsGeometry(); shape) {
+							if (const auto headPart = npc->GetCurrentHeadPartByType(HeadPart::kHair)) {
+								if (const auto node = a_root->GetObjectByName(headPart->formEditorID)) {
+									if (const auto shape = node->AsGeometry()) {
 										detail::toggle_partition(*shape, *race, a_hide);
 									}
 								}
