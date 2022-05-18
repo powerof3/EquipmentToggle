@@ -3,6 +3,7 @@ set(sources ${sources}
 	src/Graphics.cpp
 	src/Hooks.cpp
 	src/PCH.cpp
+	src/Serialization.cpp
 	src/Settings.cpp
 	src/main.cpp
 )

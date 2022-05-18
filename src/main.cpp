@@ -1,5 +1,6 @@
 #include "Events.h"
 #include "Hooks.h"
+#include "Serialization.h"
 #include "Settings.h"
 
 void OnInit(SKSE::MessagingInterface::Message* a_msg)
@@ -77,7 +78,13 @@ extern "C" DLLEXPORT bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadInterface* a_s
 
 	Hooks::Install();
 
-	const auto messaging = SKSE::GetMessagingInterface();
+	const auto serialization = SKSE::GetSerializationInterface();
+	serialization->SetUniqueID(Serialization::kEquipmentToggle);
+	serialization->SetSaveCallback(Serialization::SaveCallback);
+	serialization->SetLoadCallback(Serialization::LoadCallback);
+	serialization->SetRevertCallback(Serialization::RevertCallback);
+
+    const auto messaging = SKSE::GetMessagingInterface();
 	messaging->RegisterListener(OnInit);
 
 	return true;

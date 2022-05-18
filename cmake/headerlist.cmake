@@ -4,5 +4,6 @@ set(headers ${headers}
 	include/Graphics.h
 	include/Hooks.h
 	include/PCH.h
+	include/Serialization.h
 	include/Settings.h
 )

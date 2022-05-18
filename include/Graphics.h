@@ -112,13 +112,26 @@ namespace Graphics
 
 	namespace Slot
 	{
-        void set_toggle_data(RE::NiAVObject* a_object, const Biped a_slot, bool a_hide);
+		void set_toggle_data(const RE::Actor* a_actor, const Biped a_slot, bool a_hide);
 
-        bool get_toggle_data(RE::NiAVObject* a_object, const Biped a_slot, bool a_default);
+        bool get_toggle_data(const RE::Actor* a_actor, const Biped a_slot, bool a_default);
+
+		static SlotData get_head_slots()
+		{
+			for (auto& data : armorSlots | std::views::values) {
+				auto& [autoToggle, slots] = data;
+				for (auto& slot : slots) {
+					if (headSlots.count(slot)) {
+						return data;
+					}
+				}
+			}
+			return { false, std::set<Biped>{} };
+		}
 
         struct detail
 		{
-		    static void toggle_decal(RE::NiAVObject* a_root, RE::NiAVObject* a_node, bool a_hide)
+            static void toggle_decal(RE::NiAVObject* a_root, RE::NiAVObject* a_node, bool a_hide)
 			{
                 if (const auto decalNode = netimmerse_cast<RE::BGSDecalNode*>(a_root->GetObjectByName(RE::FixedStrings::GetSingleton()->skinnedDecalNode))) {
 					RE::BSVisit::TraverseScenegraphGeometries(a_node, [&](RE::BSGeometry* a_geometry) -> RE::BSVisit::BSVisitControl {
@@ -150,7 +163,7 @@ namespace Graphics
 							continue;
 						}
 						if (const auto node = object.partClone.get(); node) {
-							set_toggle_data(a_root, slot, a_hide);
+							set_toggle_data(a_actor, slot, a_hide);
 
 							node->CullNode(a_hide);
 							if (slot < Biped::kEditorTotal) {
@@ -192,8 +205,8 @@ namespace Graphics
 							continue;
 						}
 						if (const auto node = object.partClone.get(); node) {
-							const auto hiddenState = get_toggle_data(a_root, slot, autoToggle);
-							set_toggle_data(a_root, slot, !hiddenState);
+							const auto hiddenState = get_toggle_data(a_actor, slot, autoToggle);
+							set_toggle_data(a_actor, slot, !hiddenState);
 
 							node->CullNode(!hiddenState);
 							if (slot < Biped::kEditorTotal) {
@@ -221,14 +234,14 @@ namespace Graphics
 				});
 			}
 
-			static void toggle_slots_synced(RE::Actor* a_actor, const RE::BSTSmartPointer<RE::BipedAnim>& a_biped, RE::NiAVObject* a_root, RE::NiAVObject* a_playerRoot, const SlotData& a_slotData)
+			static void toggle_slots_synced(RE::Actor* a_actor, const RE::BSTSmartPointer<RE::BipedAnim>& a_biped, RE::NiAVObject* a_root, const SlotData& a_slotData)
 			{
-				if (!a_actor || !a_biped || !a_root || !a_playerRoot) {
+				if (!a_actor || !a_biped || !a_root) {
 					return;
 				}
 
 				const auto task = SKSE::GetTaskInterface();
-				task->AddTask([a_biped, a_slotData, a_actor, a_root, a_playerRoot]() {
+				task->AddTask([a_biped, a_slotData, a_actor, a_root]() {
 					auto& [autoToggle, slots] = a_slotData;
 					for (auto& slot : slots) {
 						auto& object = a_biped->objects[slot];
@@ -236,8 +249,8 @@ namespace Graphics
 							continue;
 						}
 						if (const auto node = object.partClone.get(); node) {
-							const auto hiddenState = !get_toggle_data(a_playerRoot, slot, autoToggle);
-							set_toggle_data(a_root, slot, !hiddenState);
+							const auto hiddenState = !get_toggle_data(RE::PlayerCharacter::GetSingleton(), slot, autoToggle);
+							set_toggle_data(RE::PlayerCharacter::GetSingleton(), slot, !hiddenState);
 
 							node->SetAppCulled(!hiddenState);
 							if (slot < Biped::kEditorTotal) {
@@ -268,6 +281,7 @@ namespace Graphics
 
 		void ToggleActorEquipment(RE::Actor* a_actor, bool a_hide);
 		void ToggleActorEquipment(RE::Actor* a_actor, const SlotData& a_slotData);
+		void ToggleActorHeadParts(RE::Actor* a_actor, bool a_hide);
 
 		void ToggleFollowerEquipment(bool a_hide);
 		void ToggleFollowerEquipment(const SlotData& a_slotData, bool a_playerSync = false);
