@@ -30,7 +30,7 @@ namespace Hooks
 						auto [contains, autoToggle, matchingSlot] = get_slot_info(armorSlots, [&](const auto& b_slot) {
 							return b_slot == slot;
 						});
-						if (contains && Graphics::Slot::get_toggle_data(actor, slot, autoToggle)) {
+						if (contains && Serialization::GetToggleState(actor, slot, autoToggle)) {
 							a_object->CullNode(true);
 						}
 					}
@@ -92,7 +92,7 @@ namespace Hooks
 						auto [contains, autoToggle, matchingSlot] = detail::get_slot_info(weaponSlots, [&](const auto& b_slot) {
 							return b_slot == slot;
 						});
-						if (contains && Graphics::Slot::get_toggle_data(actor, slot, autoToggle)) {
+						if (contains && Serialization::GetToggleState(actor, slot, autoToggle)) {
 							object->CullNode(true);
 						}
 					}
@@ -138,9 +138,9 @@ namespace Hooks
 				const auto root = func(a_actor);
 
 				if (a_actor && root && Settings::GetSingleton()->CanToggleEquipment(a_actor)) {
-					auto [autoToggle, slots] = Graphics::Slot::get_head_slots();
-					if (!slots.empty() && Graphics::Slot::get_toggle_data(a_actor, Biped::kHead, autoToggle)) {
-						Graphics::Slot::ToggleActorHeadParts(a_actor, true);
+					auto [autoToggle, slots] = Graphics::Slot::GetHeadSlots();
+					if (!slots.empty() && Serialization::GetToggleState(a_actor, Biped::kHead, autoToggle)) {
+						Graphics::ToggleActorHeadParts(a_actor, true);
 					    return nullptr;
 					}
 				}
@@ -163,7 +163,7 @@ namespace Hooks
 						auto [contains, autoToggle, matchingSlot] = detail::get_slot_info(armorSlots, [&slot](const auto& b_slot) {
 							return slot = b_slot;
 						});
-					    if (contains && Graphics::Slot::get_toggle_data(actor, slot, autoToggle)) {
+						if (contains && Serialization::GetToggleState(actor, slot, autoToggle)) {
 							return;
 						}
 					}

@@ -9,7 +9,7 @@ namespace Events
 		static bool is_cell_home(const RE::TESObjectCELL* a_cell)
 		{
 			if (a_cell->IsInteriorCell()) {
-				if (const auto loc = a_cell->GetLocation()) {
+				if (const auto loc = a_cell->GetLocation(); loc) {
 					return loc->HasKeywordString(PlayerHome) || loc->HasKeywordString(Inn);
 				}
 			}
@@ -51,10 +51,10 @@ namespace Events
 		const auto result = func(a_this);
 		if (result && !GetSingleton()->playerInCombat) {
 			GetSingleton()->playerInCombat = true;
-			Graphics::Slot::ToggleActorEquipment(a_this, true);
+			Graphics::ToggleActorEquipment(a_this, true);
 		} else {
 			GetSingleton()->playerInCombat = false;
-			Graphics::Slot::ToggleActorEquipment(a_this, false);
+			Graphics::ToggleActorEquipment(a_this, false);
 		}
 		return result;
 	}
@@ -72,10 +72,10 @@ namespace Events
 
 		switch (*evn->newState) {
 		case RE::ACTOR_COMBAT_STATE::kCombat:
-			Graphics::Slot::ToggleActorEquipment(actor, false);
+			Graphics::ToggleActorEquipment(actor, false);
 			break;
 		case RE::ACTOR_COMBAT_STATE::kNone:
-			Graphics::Slot::ToggleActorEquipment(actor, true);
+			Graphics::ToggleActorEquipment(actor, true);
 			break;
 		default:
 			break;
@@ -110,16 +110,16 @@ namespace Events
 		if (result) {
 			switch (Settings::GetSingleton()->autoToggleType) {
 			case Type::kPlayerOnly:
-				Graphics::Slot::ToggleActorEquipment(RE::PlayerCharacter::GetSingleton(), playerInHouse);
+				Graphics::ToggleActorEquipment(RE::PlayerCharacter::GetSingleton(), playerInHouse);
 				break;
 			case Type::kFollowerOnly:
-				Graphics::Slot::ToggleFollowerEquipment(playerInHouse);
+				Graphics::ToggleFollowerEquipment(playerInHouse);
 				break;
 			case Type::kPlayerAndFollower:
 			case Type::kEveryone:
 				{
-					Graphics::Slot::ToggleActorEquipment(RE::PlayerCharacter::GetSingleton(), playerInHouse);
-					Graphics::Slot::ToggleFollowerEquipment(playerInHouse);
+					Graphics::ToggleActorEquipment(RE::PlayerCharacter::GetSingleton(), playerInHouse);
+					Graphics::ToggleFollowerEquipment(playerInHouse);
 				}
 				break;
 			default:
@@ -159,21 +159,21 @@ namespace Events
 			detail::process_key(key, armorSlots, weaponSlots, [&](auto& a_slotData) {
 				switch (Settings::GetSingleton()->hotkeyToggleType) {
 				case Type::kPlayerOnly:
-					Graphics::Slot::ToggleActorEquipment(player, a_slotData);
+					Graphics::ToggleActorEquipment(player, a_slotData);
 					break;
 				case Type::kFollowerOnly:
-					Graphics::Slot::ToggleFollowerEquipment(a_slotData);
+					Graphics::ToggleFollowerEquipment(a_slotData);
 					break;
 				case Type::kPlayerAndFollower:
 					{
-						Graphics::Slot::ToggleActorEquipment(player, a_slotData);
-						Graphics::Slot::ToggleFollowerEquipment(a_slotData);
+						Graphics::ToggleActorEquipment(player, a_slotData);
+						Graphics::ToggleFollowerEquipment(a_slotData);
 					}
 					break;
 				case Type::kEveryone:
 					{
-						Graphics::Slot::ToggleActorEquipment(player, a_slotData);
-						Graphics::Slot::ToggleNPCEquipment(a_slotData);
+						Graphics::ToggleActorEquipment(player, a_slotData);
+						Graphics::ToggleNPCEquipment(a_slotData);
 					}
 					break;
 				default:

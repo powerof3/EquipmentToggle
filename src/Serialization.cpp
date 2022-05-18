@@ -162,4 +162,33 @@ namespace Serialization
 
 		logger::info("Reverting...");
 	}
+
+    void SetToggleState(const RE::Actor* a_actor, const Biped a_slot, bool a_hide) {
+        Biped slot;
+        if (headSlots.find(a_slot) != headSlots.end()) {
+            slot = Biped::kHead;
+        } else {
+            slot = a_slot;
+        }
+
+        AutoToggleMap::GetSingleton()->Add(a_actor, slot, a_hide);
+    }
+
+    bool GetToggleState(const RE::Actor* a_actor, const Biped a_slot, bool a_default)
+    {
+        Biped slot;
+        if (headSlots.find(a_slot) != headSlots.end()) {
+            slot = Biped::kHead;
+        } else {
+            slot = a_slot;
+        }
+
+        if (const auto state = AutoToggleMap::GetSingleton()->GetToggleState(a_actor, slot); state != -1) {
+            return static_cast<bool>(state);
+        }
+
+        AutoToggleMap::GetSingleton()->Add(a_actor, slot, a_default);
+
+        return a_default;
+    }
 }
