@@ -44,6 +44,9 @@ namespace Events
 		{
 			static bool thunk(RE::PlayerCharacter* a_this);
 			static inline REL::Relocation<decltype(thunk)> func;
+
+		private:
+            static inline std::atomic_bool playerInCombat{ false };
 		};
 
 	    static void register_combat_event()
@@ -77,6 +80,5 @@ namespace Events
 		Manager& operator=(Manager&&) = delete;
 
 		std::atomic_bool playerInHouse{ false };
-		std::atomic_bool playerInCombat{ false };
 	};
 }

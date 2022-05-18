@@ -48,18 +48,22 @@ namespace Events
 
 	bool Manager::PlayerCombat::thunk(RE::PlayerCharacter* a_this)
 	{
-		const auto result = func(a_this);
-		if (result && !GetSingleton()->playerInCombat) {
-			GetSingleton()->playerInCombat = true;
-			Graphics::ToggleActorEquipment(a_this, true);
+		const auto isInCombat = func(a_this);
+		if (isInCombat) {
+			if (!playerInCombat) {
+			    playerInCombat = true;
+				Graphics::ToggleActorEquipment(a_this, false);
+			}
 		} else {
-			GetSingleton()->playerInCombat = false;
-			Graphics::ToggleActorEquipment(a_this, false);
+			if (playerInCombat) {
+			    playerInCombat = false;
+				Graphics::ToggleActorEquipment(a_this, true);
+			}
 		}
-		return result;
+		return isInCombat;
 	}
 
-    EventResult Manager::ProcessEvent(const RE::TESCombatEvent* evn, RE::BSTEventSource<RE::TESCombatEvent>*)
+	EventResult Manager::ProcessEvent(const RE::TESCombatEvent* evn, RE::BSTEventSource<RE::TESCombatEvent>*)
 	{
 		if (!evn || !evn->actor) {
 			return EventResult::kContinue;
