@@ -15,12 +15,14 @@ void Settings::LoadSettings()
 
 	ini.LoadFile(path);
 
-	detail::get_value(ini, autoToggleType, "Settings", "Auto Toggle Type", ";-1 : disabled | 0 : player only | 1 : followers | 2 : player and followers | 3 : every NPC\n");
-	detail::get_value(ini, hotkeyToggleType, "Settings", "Hotkey Toggle Type", nullptr);
+	detail::get_value(ini, autoToggleType, "Toggle Settings", "Auto Toggle Type", ";-1 : disabled | 0 : player only | 1 : followers | 2 : player and followers | 3 : every NPC\n");
+	detail::get_value(ini, hotkeyToggleType, "Toggle Settings", "Hotkey Toggle Type", nullptr);
 
 	detail::get_value(ini, hideWhenEquipped, "Settings", "Hide When Equipped", nullptr);
-	detail::get_value(ini, unhideDuringCombat, "Settings", "Unhide During Combat", nullptr);
 	detail::get_value(ini, hideAtHome, "Settings", "Hide At Home", nullptr);
+	detail::get_value(ini, hideWhenSpeaking, "Settings", "Hide During Dialogue", nullptr);
+	detail::get_value(ini, unhideDuringCombat, "Settings", "Unhide During Combat", nullptr);
+	detail::get_value(ini, unhideDuringWeaponDraw, "Settings", "Unhide During Weapon Draw", nullptr);
 
 	get_data_from_ini(ini, "Armor Slots", "Armor", armorSlots, DATA::kArmor);
 	get_data_from_ini(ini, "Weapon Slots", "Weapon", weaponSlots, DATA::kWeapon);

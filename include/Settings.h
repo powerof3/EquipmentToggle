@@ -22,8 +22,11 @@ public:
 	ToggleType hotkeyToggleType{ ToggleType::kPlayerOnly };
 
 	bool hideWhenEquipped{ true };
-	bool unhideDuringCombat{ false };
 	bool hideAtHome{ false };
+	bool hideWhenSpeaking{ false };
+
+	bool unhideDuringCombat{ false };
+	bool unhideDuringWeaponDraw{ false };
 
 private:
 	enum class DATA

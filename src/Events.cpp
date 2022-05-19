@@ -46,21 +46,40 @@ namespace Events
 		}
 	};
 
-	bool Manager::PlayerCombat::thunk(RE::PlayerCharacter* a_this)
+	Manager* Manager::GetSingleton()
 	{
-		const auto isInCombat = func(a_this);
-		if (isInCombat) {
-			if (!playerInCombat) {
-			    playerInCombat = true;
-				Graphics::ToggleActorEquipment(a_this, false);
+		static Manager singleton;
+		return std::addressof(singleton);
+	}
+
+	void Manager::Register()
+	{
+		const auto settings = Settings::GetSingleton();
+		if (settings->unhideDuringCombat) {
+			if (settings->autoToggleType != Settings::ToggleType::kFollowerOnly) {
+				stl::write_vfunc<RE::PlayerCharacter, 0x0E3, PlayerCombat>();
 			}
-		} else {
-			if (playerInCombat) {
-			    playerInCombat = false;
-				Graphics::ToggleActorEquipment(a_this, true);
+			if (settings->autoToggleType != Settings::ToggleType::kPlayerOnly) {
+				if (const auto scripts = RE::ScriptEventSourceHolder::GetSingleton()) {
+					scripts->AddEventSink<RE::TESCombatEvent>(GetSingleton());
+				}
 			}
 		}
-		return isInCombat;
+		if (settings->hideAtHome) {
+			if (const auto player = RE::PlayerCharacter::GetSingleton()) {
+				player->AddEventSink<RE::BGSActorCellEvent>(GetSingleton());
+			}
+		}
+		if (settings->hideWhenSpeaking) {
+			if (const auto menuMgr = RE::UI::GetSingleton()) {
+				menuMgr->AddEventSink<RE::MenuOpenCloseEvent>(GetSingleton());
+			}
+		}
+		if (settings->hotkeyToggleType != Settings::ToggleType::kDisabled) {
+			if (const auto inputMgr = RE::BSInputDeviceManager::GetSingleton()) {
+				inputMgr->AddEventSink(GetSingleton());
+			}
+		}
 	}
 
 	EventResult Manager::ProcessEvent(const RE::TESCombatEvent* evn, RE::BSTEventSource<RE::TESCombatEvent>*)
@@ -134,13 +153,13 @@ namespace Events
 		return EventResult::kContinue;
 	}
 
-	EventResult Manager::ProcessEvent(RE::InputEvent* const* a_event, RE::BSTEventSource<RE::InputEvent*>*)
+	EventResult Manager::ProcessEvent(RE::InputEvent* const* a_evn, RE::BSTEventSource<RE::InputEvent*>*)
 	{
 		using InputType = RE::INPUT_EVENT_TYPE;
 		using Keyboard = RE::BSWin32KeyboardDevice::Key;
 		using Type = Settings::ToggleType;
 
-		if (!a_event || detail::is_in_menu()) {
+		if (!a_evn || detail::is_in_menu()) {
 			return EventResult::kContinue;
 		}
 
@@ -149,7 +168,7 @@ namespace Events
 			return EventResult::kContinue;
 		}
 
-		for (auto event = *a_event; event; event = event->next) {
+		for (auto event = *a_evn; event; event = event->next) {
 			if (event->eventType != InputType::kButton) {
 				continue;
 			}
@@ -187,5 +206,60 @@ namespace Events
 		}
 
 		return EventResult::kContinue;
+	}
+
+	EventResult Manager::ProcessEvent(const RE::MenuOpenCloseEvent* a_evn, RE::BSTEventSource<RE::MenuOpenCloseEvent>*)
+	{
+		using Type = Settings::ToggleType;
+
+		if (!a_evn) {
+			return EventResult::kContinue;
+		}
+
+		if (a_evn->menuName == RE::DialogueMenu::MENU_NAME) {
+			if (const auto player = RE::PlayerCharacter::GetSingleton(); player && player->Is3DLoaded()) {
+				switch (Settings::GetSingleton()->autoToggleType) {
+				case Type::kPlayerOnly:
+					Graphics::ToggleActorEquipment(player, a_evn->opening);
+					break;
+				case Type::kPlayerAndFollower:
+				case Type::kEveryone:
+					{
+						Graphics::ToggleActorEquipment(player, a_evn->opening);
+
+						if (auto menuTopicMgr = RE::MenuTopicManager::GetSingleton(); menuTopicMgr) {
+							const auto dialogueTarget = menuTopicMgr->speaker.get();
+							const auto dialogueTargetActor = dialogueTarget ? dialogueTarget->As<RE::Actor>() : nullptr;
+
+							if (dialogueTargetActor) {
+								Graphics::ToggleActorEquipment(dialogueTargetActor, a_evn->opening);
+							}
+						}
+					}
+					break;
+				default:
+					break;
+				}
+			}
+		}
+
+		return EventResult::kContinue;
+	}
+
+	bool Manager::PlayerCombat::thunk(RE::PlayerCharacter* a_this)
+	{
+		const auto isInCombat = func(a_this);
+		if (isInCombat) {
+			if (!playerInCombat) {
+				playerInCombat = true;
+				Graphics::ToggleActorEquipment(a_this, false);
+			}
+		} else {
+			if (playerInCombat) {
+				playerInCombat = false;
+				Graphics::ToggleActorEquipment(a_this, true);
+			}
+		}
+		return isInCombat;
 	}
 }
