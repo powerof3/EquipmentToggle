@@ -46,6 +46,6 @@ namespace Serialization
 	void LoadCallback(SKSE::SerializationInterface* a_intfc);
 	void RevertCallback(SKSE::SerializationInterface* a_intfc);
 
-	void SetToggleState(const RE::Actor* a_actor, const Biped a_slot, bool a_hide);
-    bool GetToggleState(const RE::Actor* a_actor, const Biped a_slot, bool a_default);
+	void SetToggleState(const RE::Actor* a_actor, Biped a_slot, bool a_hide);
+    bool GetToggleState(const RE::Actor* a_actor, Biped a_slot);
 }

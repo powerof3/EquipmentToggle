@@ -1,6 +1,5 @@
 #include "Events.h"
 #include "Graphics.h"
-#include "Settings.h"
 
 namespace Events
 {
@@ -14,29 +13,6 @@ namespace Events
 				}
 			}
 			return false;
-		}
-
-		static bool process_key(const Key a_key, SlotKeyVec& a_armor, SlotKeyVec& a_weapon, std::function<void(SlotData& a_slots)> a_func)
-		{
-			auto result = false;
-
-			for (auto& [key, data] : a_armor) {
-				if (key == a_key) {
-					result = true;
-					a_func(data);
-					break;
-				}
-			}
-
-			for (auto& [key, data] : a_weapon) {
-				if (key == a_key) {
-					result = true;
-					a_func(data);
-					break;
-				}
-			}
-
-			return result;
 		}
 
 		static bool is_in_menu()
@@ -54,31 +30,19 @@ namespace Events
 
 	void Manager::Register()
 	{
-		const auto settings = Settings::GetSingleton();
-		if (settings->unhideDuringCombat) {
-			if (settings->autoToggleType != Settings::ToggleType::kFollowerOnly) {
-				stl::write_vfunc<RE::PlayerCharacter, 0x0E3, PlayerCombat>();
-			}
-			if (settings->autoToggleType != Settings::ToggleType::kPlayerOnly) {
-				if (const auto scripts = RE::ScriptEventSourceHolder::GetSingleton()) {
-					scripts->AddEventSink<RE::TESCombatEvent>(GetSingleton());
-				}
-			}
+		stl::write_vfunc<RE::PlayerCharacter, 0x0E3, PlayerCombat>();
+
+		if (const auto scripts = RE::ScriptEventSourceHolder::GetSingleton()) {
+			scripts->AddEventSink<RE::TESCombatEvent>(GetSingleton());
 		}
-		if (settings->hideAtHome) {
-			if (const auto player = RE::PlayerCharacter::GetSingleton()) {
-				player->AddEventSink<RE::BGSActorCellEvent>(GetSingleton());
-			}
+		if (const auto player = RE::PlayerCharacter::GetSingleton()) {
+			player->AddEventSink<RE::BGSActorCellEvent>(GetSingleton());
 		}
-		if (settings->hideWhenSpeaking) {
-			if (const auto menuMgr = RE::UI::GetSingleton()) {
-				menuMgr->AddEventSink<RE::MenuOpenCloseEvent>(GetSingleton());
-			}
+		if (const auto menuMgr = RE::UI::GetSingleton()) {
+			menuMgr->AddEventSink<RE::MenuOpenCloseEvent>(GetSingleton());
 		}
-		if (settings->hotkeyToggleType != Settings::ToggleType::kDisabled) {
-			if (const auto inputMgr = RE::BSInputDeviceManager::GetSingleton()) {
-				inputMgr->AddEventSink(GetSingleton());
-			}
+		if (const auto inputMgr = RE::BSInputDeviceManager::GetSingleton()) {
+			inputMgr->AddEventSink(GetSingleton());
 		}
 	}
 
@@ -89,16 +53,20 @@ namespace Events
 		}
 
 		const auto actor = evn->actor->As<RE::Actor>();
-		if (!actor || !Settings::GetSingleton()->CanToggleEquipment(actor)) {
+		if (!actor) {
 			return EventResult::kContinue;
 		}
 
+		const auto can_toggle = [&](const SlotData& a_slotData) {
+			return a_slotData.unhide.combat.CanDoToggle(actor);
+		};
+
 		switch (*evn->newState) {
 		case RE::ACTOR_COMBAT_STATE::kCombat:
-			Graphics::ToggleActorEquipment(actor, false);
+			Graphics::ToggleActorEquipment(actor, can_toggle, false);
 			break;
 		case RE::ACTOR_COMBAT_STATE::kNone:
-			Graphics::ToggleActorEquipment(actor, true);
+			Graphics::ToggleActorEquipment(actor, can_toggle, true);
 			break;
 		default:
 			break;
@@ -109,15 +77,17 @@ namespace Events
 
 	EventResult Manager::ProcessEvent(const RE::BGSActorCellEvent* a_evn, RE::BSTEventSource<RE::BGSActorCellEvent>*)
 	{
-		using CellFlag = RE::BGSActorCellEvent::CellFlag;
-		using Type = Settings::ToggleType;
-
-		if (!a_evn || a_evn->flags == CellFlag::kLeave) {
+		if (!a_evn || a_evn->flags == RE::BGSActorCellEvent::CellFlag::kLeave) {
 			return EventResult::kContinue;
 		}
 
 		const auto cell = RE::TESForm::LookupByID<RE::TESObjectCELL>(a_evn->cellID);
 		if (!cell) {
+			return EventResult::kContinue;
+		}
+
+		const auto player = RE::PlayerCharacter::GetSingleton();
+		if (!player || !player->Is3DLoaded()) {
 			return EventResult::kContinue;
 		}
 
@@ -131,23 +101,15 @@ namespace Events
 		}
 
 		if (result) {
-			switch (Settings::GetSingleton()->autoToggleType) {
-			case Type::kPlayerOnly:
-				Graphics::ToggleActorEquipment(RE::PlayerCharacter::GetSingleton(), playerInHouse);
-				break;
-			case Type::kFollowerOnly:
-				Graphics::ToggleFollowerEquipment(playerInHouse);
-				break;
-			case Type::kPlayerAndFollower:
-			case Type::kEveryone:
-				{
-					Graphics::ToggleActorEquipment(RE::PlayerCharacter::GetSingleton(), playerInHouse);
-					Graphics::ToggleFollowerEquipment(playerInHouse);
-				}
-				break;
-			default:
-				break;
-			}
+			Graphics::ToggleActorEquipment(
+				player, [&](const SlotData& a_slotData) {
+					return a_slotData.hide.home.CanDoPlayerToggle();
+				},
+				playerInHouse);
+
+			Graphics::ToggleFollowerEquipment([](const SlotData& a_slotData) {
+				return a_slotData.hide.home.CanDoFollowerToggle();
+			}, playerInHouse);
 		}
 
 		return EventResult::kContinue;
@@ -157,7 +119,6 @@ namespace Events
 	{
 		using InputType = RE::INPUT_EVENT_TYPE;
 		using Keyboard = RE::BSWin32KeyboardDevice::Key;
-		using Type = Settings::ToggleType;
 
 		if (!a_evn || detail::is_in_menu()) {
 			return EventResult::kContinue;
@@ -179,29 +140,9 @@ namespace Events
 			}
 
 			const auto key = static_cast<Key>(button->idCode);
-			detail::process_key(key, armorSlots, weaponSlots, [&](auto& a_slotData) {
-				switch (Settings::GetSingleton()->hotkeyToggleType) {
-				case Type::kPlayerOnly:
-					Graphics::ToggleActorEquipment(player, a_slotData);
-					break;
-				case Type::kFollowerOnly:
-					Graphics::ToggleFollowerEquipment(a_slotData);
-					break;
-				case Type::kPlayerAndFollower:
-					{
-						Graphics::ToggleActorEquipment(player, a_slotData);
-						Graphics::ToggleFollowerEquipment(a_slotData);
-					}
-					break;
-				case Type::kEveryone:
-					{
-						Graphics::ToggleActorEquipment(player, a_slotData);
-						Graphics::ToggleNPCEquipment(a_slotData);
-					}
-					break;
-				default:
-					break;
-				}
+			Graphics::ToggleAllEquipment([&](RE::Actor* a_actor, const SlotData& a_slotData) {
+				auto& [hotKey, hide, unhide, slots] = a_slotData;
+				return hotKey.key == key && hotKey.type.CanDoToggle(a_actor);
 			});
 		}
 
@@ -210,35 +151,26 @@ namespace Events
 
 	EventResult Manager::ProcessEvent(const RE::MenuOpenCloseEvent* a_evn, RE::BSTEventSource<RE::MenuOpenCloseEvent>*)
 	{
-		using Type = Settings::ToggleType;
-
 		if (!a_evn) {
 			return EventResult::kContinue;
 		}
 
 		if (a_evn->menuName == RE::DialogueMenu::MENU_NAME) {
 			if (const auto player = RE::PlayerCharacter::GetSingleton(); player && player->Is3DLoaded()) {
-				switch (Settings::GetSingleton()->autoToggleType) {
-				case Type::kPlayerOnly:
-					Graphics::ToggleActorEquipment(player, a_evn->opening);
-					break;
-				case Type::kPlayerAndFollower:
-				case Type::kEveryone:
-					{
-						Graphics::ToggleActorEquipment(player, a_evn->opening);
+				Graphics::ToggleActorEquipment(
+					player, [](const SlotData& a_slotData) {
+						return a_slotData.hide.dialogue.CanDoPlayerToggle();
+					},
+					a_evn->opening);
 
-						if (auto menuTopicMgr = RE::MenuTopicManager::GetSingleton(); menuTopicMgr) {
-							const auto dialogueTarget = menuTopicMgr->speaker.get();
-							const auto dialogueTargetActor = dialogueTarget ? dialogueTarget->As<RE::Actor>() : nullptr;
+				const auto dialogueTarget = RE::MenuTopicManager::GetSingleton()->speaker.get();
 
-							if (dialogueTargetActor) {
-								Graphics::ToggleActorEquipment(dialogueTargetActor, a_evn->opening);
-							}
-						}
-					}
-					break;
-				default:
-					break;
+				if (const auto dialogueTargetActor = dialogueTarget ? dialogueTarget->As<RE::Actor>() : nullptr) {
+					Graphics::ToggleActorEquipment(
+						dialogueTargetActor, [&](const SlotData& a_slotData) {
+							return a_slotData.hide.dialogue.CanDoToggle(dialogueTargetActor);
+						},
+						a_evn->opening);
 				}
 			}
 		}
@@ -252,12 +184,20 @@ namespace Events
 		if (isInCombat) {
 			if (!playerInCombat) {
 				playerInCombat = true;
-				Graphics::ToggleActorEquipment(a_this, false);
+				Graphics::ToggleActorEquipment(
+					a_this, [](const SlotData& a_slotData) {
+						return a_slotData.unhide.combat.CanDoPlayerToggle();
+					},
+					true);
 			}
 		} else {
 			if (playerInCombat) {
 				playerInCombat = false;
-				Graphics::ToggleActorEquipment(a_this, true);
+				Graphics::ToggleActorEquipment(
+					a_this, [](const SlotData& a_slotData) {
+						return a_slotData.unhide.combat.CanDoPlayerToggle();
+					},
+					false);
 			}
 		}
 		return isInCombat;

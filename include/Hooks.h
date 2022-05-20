@@ -1,39 +1,38 @@
 #pragma once
 
 #include "Graphics.h"
+#include "Serialization.h"
 #include "Settings.h"
 
 namespace Hooks
 {
 	struct detail
 	{
-		static std::tuple<bool, bool, Biped> get_slot_info(const SlotKeyVec& a_vec, std::function<bool(Biped a_slot)> a_func)
+		static bool get_equipped_and_visible_slot(RE::Actor* a_actor, Biped a_slot)
 		{
-			for (const auto& data : a_vec | std::views::values) {
-				const auto& [autoToggle, slots] = data;
-				for (auto& slot : slots) {
-					if (a_func(slot)) {
-						return { true, autoToggle, slot };
-					}
+			bool result = false;
+
+			Settings::GetSingleton()->ForEachSlot([&](const SlotData& a_slotData) {
+				auto& [hotKey, hide, unhide, slots] = a_slotData;
+				if (slots.contains(a_slot) && hide.equipped.CanDoToggle(a_actor) && Serialization::GetToggleState(a_actor, a_slot)) {
+					result = true;
+					return false;
 				}
-			}
-			return { false, true, Biped::kNone };
+				return true;
+			});
+
+			return result;
 		}
 
 		static void hide_armor(const RE::BipedAnim* a_biped, RE::NiAVObject* a_object, std::int32_t a_slot)
 		{
-			if (const auto ref = a_biped->actorRef.get(); ref) {
-				const auto actor = ref->As<RE::Actor>();
-				if (actor && Settings::GetSingleton()->CanToggleEquipment(actor)) {
-					auto slot = static_cast<Biped>(a_slot);
-					if (const auto root = actor->GetCurrent3D(); root) {
-						auto [contains, autoToggle, matchingSlot] = get_slot_info(armorSlots, [&](const auto& b_slot) {
-							return b_slot == slot;
-						});
-						if (contains && Serialization::GetToggleState(actor, slot, autoToggle)) {
-							a_object->CullNode(true);
-						}
-					}
+			const auto ref = a_biped ? a_biped->actorRef.get() : RE::TESObjectREFRPtr();
+			const auto actor = ref ? ref->As<RE::Actor>() : nullptr;
+
+			if (actor) {
+				const auto slot = static_cast<Biped>(a_slot);
+				if (get_equipped_and_visible_slot(actor, slot)) {
+					a_object->CullNode(true);
 				}
 			}
 		}
@@ -85,14 +84,10 @@ namespace Hooks
 			{
 				const auto object = func(a_model, a_slot, a_ref, a_biped, a_root3D);
 
-				if (a_ref && a_root3D && object) {
-					const auto actor = a_ref->As<RE::Actor>();
-					if (actor && Settings::GetSingleton()->CanToggleEquipment(actor)) {
-						auto slot = static_cast<Biped>(a_slot);
-						auto [contains, autoToggle, matchingSlot] = detail::get_slot_info(weaponSlots, [&](const auto& b_slot) {
-							return b_slot == slot;
-						});
-						if (contains && Serialization::GetToggleState(actor, slot, autoToggle)) {
+				if (a_ref && object) {
+					if (const auto actor = a_ref->As<RE::Actor>(); actor) {
+						const auto slot = static_cast<Biped>(a_slot);
+						if (detail::get_equipped_and_visible_slot(actor, slot)) {
 							object->CullNode(true);
 						}
 					}
@@ -105,44 +100,22 @@ namespace Hooks
 
 		inline void Install()
 		{
-			using Type = Settings::ToggleType;
-
 			REL::Relocation<std::uintptr_t> target{ RELOCATION_ID(15506, 15683) };
 
-			switch (Settings::GetSingleton()->autoToggleType) {
-			case Type::kPlayerOnly:
-				stl::write_thunk_call<AttachWeaponModelToActor>(target.address() + OFFSET(0x17F, 0x2B1));
-				break;
-			case Type::kFollowerOnly:
-				stl::write_thunk_call<AttachWeaponModelToActor>(target.address() + OFFSET(0x1D0, 0x2FA));
-				break;
-			case Type::kPlayerAndFollower:
-			case Type::kEveryone:
-				{
-					stl::write_thunk_call<AttachWeaponModelToActor>(target.address() + OFFSET(0x17F, 0x2B1));
-					stl::write_thunk_call<AttachWeaponModelToActor>(target.address() + OFFSET(0x1D0, 0x2FA));
-				}
-				break;
-			default:
-				break;
-			}
+			stl::write_thunk_call<AttachWeaponModelToActor>(target.address() + OFFSET(0x17F, 0x2B1));
+			stl::write_thunk_call<AttachWeaponModelToActor>(target.address() + OFFSET(0x1D0, 0x2FA));
 		}
 	}
 
 	namespace Head
 	{
-		struct GetRootNode // HEAD
+		struct GetRootNode  // HEAD
 		{
 			static RE::NiAVObject* thunk(RE::Actor* a_actor)
 			{
 				const auto root = func(a_actor);
-
-				if (a_actor && root && Settings::GetSingleton()->CanToggleEquipment(a_actor)) {
-					auto [autoToggle, slots] = Graphics::Slot::GetHeadSlots();
-					if (!slots.empty() && Serialization::GetToggleState(a_actor, Biped::kHead, autoToggle)) {
-						Graphics::ToggleActorHeadParts(a_actor, true);
-					    return nullptr;
-					}
+				if (a_actor && root && Graphics::ToggleActorHeadParts(a_actor, true)) {
+					return nullptr;
 				}
 
 				return root;
@@ -157,15 +130,10 @@ namespace Hooks
 				const auto ref = a_biped ? a_biped->actorRef.get() : RE::NiPointer<RE::TESObjectREFR>();
 				const auto actor = ref ? ref->As<RE::Actor>() : nullptr;
 
-				if (a_biped && actor && Settings::GetSingleton()->CanToggleEquipment(actor)) {
-					if (const auto root = a_biped->root; root) {
-						auto slot = static_cast<Biped>(a_slot);
-						auto [contains, autoToggle, matchingSlot] = detail::get_slot_info(armorSlots, [&slot](const auto& b_slot) {
-							return slot = b_slot;
-						});
-						if (contains && Serialization::GetToggleState(actor, slot, autoToggle)) {
-							return;
-						}
+				if (a_biped && actor) {
+					const auto slot = static_cast<Biped>(a_slot);
+					if (detail::get_equipped_and_visible_slot(actor, slot)) {
+						return;
 					}
 				}
 

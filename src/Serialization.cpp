@@ -174,7 +174,7 @@ namespace Serialization
         AutoToggleMap::GetSingleton()->Add(a_actor, slot, a_hide);
     }
 
-    bool GetToggleState(const RE::Actor* a_actor, const Biped a_slot, bool a_default)
+    bool GetToggleState(const RE::Actor* a_actor, const Biped a_slot)
     {
         Biped slot;
         if (headSlots.find(a_slot) != headSlots.end()) {
@@ -187,8 +187,8 @@ namespace Serialization
             return static_cast<bool>(state);
         }
 
-        AutoToggleMap::GetSingleton()->Add(a_actor, slot, a_default);
+        AutoToggleMap::GetSingleton()->Add(a_actor, slot, true);
 
-        return a_default;
+        return true;
     }
 }

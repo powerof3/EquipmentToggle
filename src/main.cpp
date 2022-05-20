@@ -55,8 +55,8 @@ void InitializeLog()
 
 	auto log = std::make_shared<spdlog::logger>("global log"s, std::move(sink));
 
-	log->set_level(spdlog::level::info);
-	log->flush_on(spdlog::level::info);
+	log->set_level(spdlog::level::debug);
+	log->flush_on(spdlog::level::debug);
 
 	spdlog::set_default_logger(std::move(log));
 	spdlog::set_pattern("[%l] %v"s);
@@ -72,7 +72,7 @@ extern "C" DLLEXPORT bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadInterface* a_s
 
 	SKSE::Init(a_skse);
 
-	SKSE::AllocTrampoline(64);
+	SKSE::AllocTrampoline(70);
 
 	Settings::GetSingleton()->LoadSettings();
 

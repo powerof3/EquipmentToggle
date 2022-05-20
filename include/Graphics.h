@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Serialization.h"
+#include "Settings.h"
 
 namespace Graphics
 {
@@ -110,7 +110,7 @@ namespace Graphics
 		void UpdateHeadPart(RE::Actor* a_actor, RE::NiAVObject* a_root, RE::TESObjectARMA* a_arma, HeadPart a_type, bool a_hide);
 	}
 
-	namespace Slot
+	namespace Equipment
 	{
 		struct detail
 		{
@@ -134,22 +134,21 @@ namespace Graphics
 			}
 		};
 
-		SlotData GetHeadSlots();
+		static void toggle_slots(RE::Actor* a_actor, const RE::BSTSmartPointer<RE::BipedAnim>& a_biped, RE::NiAVObject* a_root, const SlotSet& a_slots, bool a_hide);
 
-			static void toggle_slots(RE::Actor* a_actor, const RE::BSTSmartPointer<RE::BipedAnim>& a_biped, RE::NiAVObject* a_root, const std::set<Biped>& a_slots, bool a_hide);
+		static void toggle_slots(RE::Actor* a_actor, const RE::BSTSmartPointer<RE::BipedAnim>& a_biped, RE::NiAVObject* a_root, const SlotSet& a_slots);
 
-            static void toggle_slots(RE::Actor* a_actor, const RE::BSTSmartPointer<RE::BipedAnim>& a_biped, RE::NiAVObject* a_root, const SlotData& a_slotData);
+		//static void toggle_slots_synced(RE::Actor* a_actor, const RE::BSTSmartPointer<RE::BipedAnim>& a_biped, RE::NiAVObject* a_root, const SlotSet& a_slots);
+	}
 
-            static void toggle_slots_synced(RE::Actor* a_actor, const RE::BSTSmartPointer<RE::BipedAnim>& a_biped, RE::NiAVObject* a_root, const SlotData& a_slotData);
-    }
+	SlotData GetHeadSlots();
 
-	void ToggleActorEquipment(RE::Actor* a_actor, bool a_hide);
-	void ToggleActorEquipment(RE::Actor* a_actor, const SlotData& a_slotData);
-	void ToggleActorHeadParts(RE::Actor* a_actor, bool a_hide);
+    void ToggleActorEquipment(RE::Actor* a_actor, std::function<bool(const SlotData& a_slotData)> a_func, bool a_hide);
 
-	void ToggleFollowerEquipment(bool a_hide);
-	void ToggleFollowerEquipment(const SlotData& a_slotData, bool a_playerSync = false);
+    void ToggleFollowerEquipment(std::function<bool(const SlotData& a_slotData)> a_func, bool a_hide);
 
-	void ToggleNPCEquipment(bool a_hide);
-	void ToggleNPCEquipment(const SlotData& a_slotData);
+    void ToggleNPCEquipment(std::function<bool(RE::Actor* a_actor, const SlotData& a_slotData)> a_func);
+	void ToggleAllEquipment(std::function<bool(RE::Actor* a_actor, const SlotData& a_slotData)> a_func);
+
+    bool ToggleActorHeadParts(RE::Actor* a_actor, bool a_hide);
 }

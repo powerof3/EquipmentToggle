@@ -1,146 +1,6 @@
 #include "Graphics.h"
 
-namespace Graphics::Slot
-{
-	SlotData GetHeadSlots()
-	{
-		for (auto& data : armorSlots | std::views::values) {
-			auto& [autoToggle, slots] = data;
-			for (auto& slot : slots) {
-				if (headSlots.count(slot)) {
-					return data;
-				}
-			}
-		}
-		return { false, std::set<Biped>{} };
-	}
-
-	void toggle_slots(RE::Actor* a_actor, const RE::BSTSmartPointer<RE::BipedAnim>& a_biped, RE::NiAVObject* a_root, const std::set<Biped>& a_slots, bool a_hide)
-	{
-		if (!a_actor || !a_biped || !a_root) {
-			return;
-		}
-
-		SKSE::GetTaskInterface()->AddTask([a_biped, a_slots, a_actor, a_root, a_hide]() {
-			for (auto& slot : a_slots) {
-				auto& object = a_biped->objects[slot];
-				if (const auto item = object.item; !item) {
-					continue;
-				}
-				if (const auto node = object.partClone.get(); node) {
-					Serialization::SetToggleState(a_actor, slot, a_hide);
-
-					node->CullNode(a_hide);
-					if (slot < Biped::kEditorTotal) {
-						if (const auto parent = node->parent; parent) {
-							detail::toggle_decal(parent, node, a_hide);
-						}
-						switch (slot) {
-						case Biped::kHead:
-						case Biped::kHair:
-						case Biped::kLongHair:
-						case Biped::kCirclet:
-						case Biped::kEars:
-						case Biped::kDecapitateHead:
-							{
-								Head::UpdateHeadPart(a_actor, a_root, object.addon, HeadPart::kHair, a_hide);
-								Head::UpdateHeadPart(a_actor, a_root, object.addon, HeadPart::kFace, a_hide);
-							}
-							break;
-						default:
-							break;
-						}
-					}
-				}
-			}
-		});
-	}
-	void toggle_slots(RE::Actor* a_actor, const RE::BSTSmartPointer<RE::BipedAnim>& a_biped, RE::NiAVObject* a_root, const SlotData& a_slotData)
-	{
-		if (!a_actor || !a_biped || !a_root) {
-			return;
-		}
-
-		SKSE::GetTaskInterface()->AddTask([a_biped, a_slotData, a_actor, a_root]() {
-			auto& [autoToggle, slots] = a_slotData;
-			for (auto& slot : slots) {
-				auto& object = a_biped->objects[slot];
-				if (const auto item = object.item; !item) {
-					continue;
-				}
-				if (const auto node = object.partClone.get(); node) {
-					const auto hiddenState = Serialization::GetToggleState(a_actor, slot, autoToggle);
-					Serialization::SetToggleState(a_actor, slot, !hiddenState);
-
-					node->CullNode(!hiddenState);
-					if (slot < Biped::kEditorTotal) {
-						if (const auto parent = node->parent; parent) {
-							detail::toggle_decal(parent, node, !hiddenState);
-						}
-						switch (slot) {
-						case Biped::kHead:
-						case Biped::kHair:
-						case Biped::kLongHair:
-						case Biped::kCirclet:
-						case Biped::kEars:
-						case Biped::kDecapitateHead:
-							{
-								Head::UpdateHeadPart(a_actor, a_root, object.addon, HeadPart::kHair, !hiddenState);
-								Head::UpdateHeadPart(a_actor, a_root, object.addon, HeadPart::kFace, !hiddenState);
-							}
-							break;
-						default:
-							break;
-						}
-					}
-				}
-			}
-		});
-	}
-	void toggle_slots_synced(RE::Actor* a_actor, const RE::BSTSmartPointer<RE::BipedAnim>& a_biped, RE::NiAVObject* a_root, const SlotData& a_slotData)
-	{
-		if (!a_actor || !a_biped || !a_root) {
-			return;
-		}
-
-		const auto task = SKSE::GetTaskInterface();
-		task->AddTask([a_biped, a_slotData, a_actor, a_root]() {
-			auto& [autoToggle, slots] = a_slotData;
-			for (auto& slot : slots) {
-				auto& object = a_biped->objects[slot];
-				if (const auto item = object.item; !item) {
-					continue;
-				}
-				if (const auto node = object.partClone.get(); node) {
-					const auto hiddenState = !Serialization::GetToggleState(RE::PlayerCharacter::GetSingleton(), slot, autoToggle);
-					Serialization::SetToggleState(RE::PlayerCharacter::GetSingleton(), slot, !hiddenState);
-
-					node->SetAppCulled(!hiddenState);
-					if (slot < Biped::kEditorTotal) {
-						if (const auto parent = node->parent; parent) {
-							detail::toggle_decal(parent, node, !hiddenState);
-						}
-						switch (slot) {
-						case Biped::kHead:
-						case Biped::kHair:
-						case Biped::kLongHair:
-						case Biped::kCirclet:
-						case Biped::kEars:
-						case Biped::kDecapitateHead:
-							{
-								Head::UpdateHeadPart(a_actor, a_root, object.addon, HeadPart::kHair, !hiddenState);
-								Head::UpdateHeadPart(a_actor, a_root, object.addon, HeadPart::kFace, !hiddenState);
-							}
-							break;
-						default:
-							break;
-						}
-					}
-				}
-			}
-		});
-	}
-}
+#include "Serialization.h"
 
 namespace Graphics::Head
 {
@@ -185,106 +45,211 @@ namespace Graphics::Head
 	}
 }
 
+namespace Graphics::Equipment
+{
+	void toggle_slots(RE::Actor* a_actor, const RE::BSTSmartPointer<RE::BipedAnim>& a_biped, RE::NiAVObject* a_root, const SlotSet& a_slots, bool a_hide)
+	{
+		if (!a_actor || !a_biped || !a_root) {
+			return;
+		}
+
+		SKSE::GetTaskInterface()->AddTask([a_biped, a_slots, a_actor, a_root, a_hide]() {
+			for (auto& slot : a_slots) {
+				auto& object = a_biped->objects[slot];
+				if (const auto node = object.partClone; node) {
+					Serialization::SetToggleState(a_actor, slot, a_hide);
+
+					node->CullNode(a_hide);
+					if (slot < Biped::kEditorTotal) {
+						if (const auto parent = node->parent; parent) {
+							detail::toggle_decal(parent, node.get(), a_hide);
+						}
+						switch (slot) {
+						case Biped::kHead:
+						case Biped::kHair:
+						case Biped::kLongHair:
+						case Biped::kCirclet:
+						case Biped::kEars:
+						case Biped::kDecapitateHead:
+							{
+								Head::UpdateHeadPart(a_actor, a_root, object.addon, HeadPart::kHair, a_hide);
+								Head::UpdateHeadPart(a_actor, a_root, object.addon, HeadPart::kFace, a_hide);
+							}
+							break;
+						default:
+							break;
+						}
+					}
+				}
+			}
+		});
+	}
+	void toggle_slots(RE::Actor* a_actor, const RE::BSTSmartPointer<RE::BipedAnim>& a_biped, RE::NiAVObject* a_root, const SlotSet& a_slots)
+	{
+		if (!a_actor || !a_biped || !a_root) {
+			return;
+		}
+
+		SKSE::GetTaskInterface()->AddTask([a_biped, a_slots, a_actor, a_root]() {
+			for (auto& slot : a_slots) {
+                const auto& object = a_biped->objects[slot];
+				if (const auto node = object.partClone; node) {
+					const auto hiddenState = Serialization::GetToggleState(a_actor, slot);
+				    Serialization::SetToggleState(a_actor, slot, !hiddenState);
+
+					node->CullNode(!hiddenState);
+					if (slot < Biped::kEditorTotal) {
+						if (const auto parent = node->parent; parent) {
+							detail::toggle_decal(parent, node.get(), !hiddenState);
+						}
+						switch (slot) {
+						case Biped::kHead:
+						case Biped::kHair:
+						case Biped::kLongHair:
+						case Biped::kCirclet:
+						case Biped::kEars:
+						case Biped::kDecapitateHead:
+							{
+								Head::UpdateHeadPart(a_actor, a_root, object.addon, HeadPart::kHair, !hiddenState);
+								Head::UpdateHeadPart(a_actor, a_root, object.addon, HeadPart::kFace, !hiddenState);
+							}
+							break;
+						default:
+							break;
+						}
+					}
+				}
+			}
+		});
+	}
+	void toggle_slots_synced(RE::Actor* a_actor, const RE::BSTSmartPointer<RE::BipedAnim>& a_biped, RE::NiAVObject* a_root, const SlotSet& a_slots)
+	{
+		if (!a_actor || !a_biped || !a_root) {
+			return;
+		}
+
+		const auto task = SKSE::GetTaskInterface();
+		task->AddTask([a_biped, a_slots, a_actor, a_root]() {
+			for (auto& slot : a_slots) {
+				auto& object = a_biped->objects[slot];
+				if (const auto item = object.item; !item) {
+					continue;
+				}
+				if (const auto node = object.partClone.get(); node) {
+					const auto hiddenState = !Serialization::GetToggleState(RE::PlayerCharacter::GetSingleton(), slot);
+					Serialization::SetToggleState(RE::PlayerCharacter::GetSingleton(), slot, !hiddenState);
+
+					node->SetAppCulled(!hiddenState);
+					if (slot < Biped::kEditorTotal) {
+						if (const auto parent = node->parent; parent) {
+							detail::toggle_decal(parent, node, !hiddenState);
+						}
+						switch (slot) {
+						case Biped::kHead:
+						case Biped::kHair:
+						case Biped::kLongHair:
+						case Biped::kCirclet:
+						case Biped::kEars:
+						case Biped::kDecapitateHead:
+							{
+								Head::UpdateHeadPart(a_actor, a_root, object.addon, HeadPart::kHair, !hiddenState);
+								Head::UpdateHeadPart(a_actor, a_root, object.addon, HeadPart::kFace, !hiddenState);
+							}
+							break;
+						default:
+							break;
+						}
+					}
+				}
+			}
+		});
+	}
+}
+
 namespace Graphics
 {
-	void ToggleActorEquipment(RE::Actor* a_actor, const bool a_hide)
+	SlotData GetHeadSlots()
 	{
-		for (auto& armorData : armorSlots | std::views::values) {
-			auto& [autoToggle, slots] = armorData;
-
-			for (std::uint32_t i = 0; i < 2; i++) {
-				Slot::toggle_slots(a_actor, a_actor->GetBiped(i), a_actor->Get3D(i), slots, a_hide);
+		for (auto& slotData : Settings::GetSingleton()->armorSlots) {
+			if (slotData.ContainsHeadSlots()) {
+				return slotData;
 			}
 		}
+		return SlotData{};
+	}
 
-		for (auto& weaponData : weaponSlots | std::views::values) {
-			auto& [autoToggle, slots] = weaponData;
-
-			for (std::uint32_t i = 0; i < 2; i++) {
-				Slot::toggle_slots(a_actor, a_actor->GetBiped(i), a_actor->Get3D(i), slots, a_hide);
+	void ToggleActorEquipment(RE::Actor* a_actor, std::function<bool(const SlotData& a_slotData)> a_func, bool a_hide)
+	{
+		Settings::GetSingleton()->ForEachSlot([&](const SlotData& a_slotData) {
+			if (a_func(a_slotData)) {
+				for (std::uint32_t i = 0; i < 2; i++) {
+					Equipment::toggle_slots(a_actor, a_actor->GetBiped(i), a_actor->Get3D(i), a_slotData.slots, a_hide);
+				}
 			}
-		}
+			return true;
+		});
 	}
 
-	void ToggleActorEquipment(RE::Actor* a_actor, const SlotData& a_slotData)
+	bool ToggleActorHeadParts(RE::Actor* a_actor, bool a_hide)
 	{
-		for (std::uint32_t i = 0; i < 2; i++) {
-			Slot::toggle_slots(a_actor, a_actor->GetBiped(i), a_actor->Get3D(i), a_slotData);
-		}
-	}
-
-	void ToggleActorHeadParts(RE::Actor* a_actor, bool a_hide)
-	{
-		if (auto [autoToggle, slots] = Slot::GetHeadSlots(); !slots.empty()) {
+		auto [hotKey, hide, unhide, slots] = GetHeadSlots();
+	    if (!slots.empty() && hide.equipped.CanDoToggle(a_actor) && Serialization::GetToggleState(a_actor, Biped::kHead)) {
 			for (std::uint32_t i = 0; i < 2; i++) {
-				Slot::toggle_slots(a_actor, a_actor->GetBiped(i), a_actor->Get3D(i), slots, a_hide);
+				Equipment::toggle_slots(a_actor, a_actor->GetBiped(i), a_actor->Get3D(i), slots, a_hide);
 			}
+			return true;
 		}
+		return false;
 	}
 
-	void ToggleFollowerEquipment(const bool a_hide)
+	void ToggleFollowerEquipment(std::function<bool(const SlotData& a_slotData)> a_func, bool a_hide)
 	{
-		if (const auto processList = RE::ProcessLists::GetSingleton()) {
-			for (auto& handle : processList->highActorHandles) {
+		const auto player = RE::PlayerCharacter::GetSingleton();
+		const auto xFollowerList = player ? player->extraList.GetByType<RE::ExtraFollower>() : nullptr;
+
+		if (xFollowerList) {
+			for (auto& [handle, dist] : xFollowerList->actorFollowers) {
 				const auto actor = handle.get();
-				if (actor && actor->IsPlayerTeammate() && actor->HasKeywordString(NPC)) {
-					for (auto& armorData : armorSlots | std::views::values) {
-						auto& [autoToggle, slots] = armorData;
-						Slot::toggle_slots(actor.get(), actor->GetBiped(false), actor->Get3D(false), slots, a_hide);
-					}
-					for (auto& weaponData : weaponSlots | std::views::values) {
-						auto& [autoToggle, slots] = weaponData;
-						Slot::toggle_slots(actor.get(), actor->GetBiped(false), actor->Get3D(false), slots, a_hide);
-					}
+				if (actor && actor->HasKeywordString(NPC)) {
+					Settings::GetSingleton()->ForEachSlot([&](const SlotData& a_slotData) {
+						if (a_func(a_slotData)) {
+							Equipment::toggle_slots(actor.get(), actor->GetBiped(false), actor->Get3D(false), a_slotData.slots, a_hide);
+						}
+						return true;
+					});
 				}
 			}
 		}
 	}
 
-	void ToggleFollowerEquipment(const SlotData& a_slotData, bool a_playerSync)
-	{
-		if (const auto processList = RE::ProcessLists::GetSingleton()) {
-			for (auto& handle : processList->highActorHandles) {
-				const auto actor = handle.get();
-				if (actor && actor->IsPlayerTeammate() && actor->HasKeywordString(NPC)) {
-					if (a_playerSync) {
-						Slot::toggle_slots_synced(actor.get(), actor->GetBiped(false), actor->Get3D(false), a_slotData);
-					} else {
-						Slot::toggle_slots(actor.get(), actor->GetBiped(false), actor->Get3D(false), a_slotData);
-					}
-				}
-			}
-		}
-	}
-
-	void ToggleNPCEquipment(const bool a_hide)
+	void ToggleNPCEquipment(std::function<bool(RE::Actor* a_actor, const SlotData& a_slotData)> a_func)
 	{
 		if (const auto processList = RE::ProcessLists::GetSingleton(); processList) {
 			for (auto& handle : processList->highActorHandles) {
-				const auto actor = handle.get();
-				if (actor && actor->HasKeywordString(NPC)) {
-					for (auto& armorData : armorSlots | std::views::values) {
-						auto& [autoToggle, slots] = armorData;
-						Slot::toggle_slots(actor.get(), actor->GetBiped(false), actor->Get3D(false), slots, a_hide);
-					}
-					for (auto& weaponData : weaponSlots | std::views::values) {
-						auto& [autoToggle, slots] = weaponData;
-						Slot::toggle_slots(actor.get(), actor->GetBiped(false), actor->Get3D(false), slots, a_hide);
-					}
+				if (const auto actor = handle.get(); actor) {
+					Settings::GetSingleton()->ForEachSlot([&](const SlotData& a_slotData) {
+						if (a_func(actor.get(), a_slotData)) {
+							Equipment::toggle_slots(actor.get(), actor->GetBiped(false), actor->Get3D(false), a_slotData.slots);
+						}
+						return true;
+					});
 				}
 			}
 		}
 	}
 
-	void ToggleNPCEquipment(const SlotData& a_slotData)
+    void ToggleAllEquipment(std::function<bool(RE::Actor* a_actor, const SlotData& a_slotData)> a_func)
 	{
-		if (const auto processList = RE::ProcessLists::GetSingleton(); processList) {
-			for (auto& handle : processList->highActorHandles) {
-				const auto actor = handle.get();
-				if (actor && actor->HasKeywordString(NPC)) {
-					Slot::toggle_slots(actor.get(), actor->GetBiped(false), actor->Get3D(false), a_slotData);
+        const auto player = RE::PlayerCharacter::GetSingleton();
+		Settings::GetSingleton()->ForEachSlot([&](const SlotData& a_slotData) {
+			if (a_func(player, a_slotData)) {
+				for (std::uint32_t i = 0; i < 2; i++) {
+					Equipment::toggle_slots(player, player->GetBiped(i), player->Get3D(i), a_slotData.slots);
 				}
 			}
-		}
+			return true;
+		});
+
+        ToggleNPCEquipment(a_func);
 	}
 }

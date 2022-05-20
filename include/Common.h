@@ -1,21 +1,17 @@
 #pragma once
 
 using Biped = RE::BIPED_OBJECT;
-using Slot = RE::BIPED_MODEL::BipedObjectSlot;
+using BipedSlot = RE::BIPED_MODEL::BipedObjectSlot;
 using Key = RE::BSKeyboardDevice::Key;
 using HeadPart = RE::BGSHeadPart::HeadPartType;
 
-using SlotData = std::pair<bool, std::set<Biped>>;
-using SlotKeyData = std::pair<Key, SlotData>;
-using SlotKeyVec = std::vector<SlotKeyData>;
+using SlotSet = std::set<Biped>;
 
 inline auto constexpr NPC{ "ActorTypeNPC"sv };
 inline auto constexpr PlayerHome{ "LocTypePlayerHouse"sv };
 inline auto constexpr Inn{ "LocTypeInn"sv };
 
-inline auto constexpr HeadData{ "EquipToggle:Head" };
-
-inline constexpr frozen::map<std::uint32_t, Biped, 31> bipedMap{
+inline constexpr frozen::map<std::uint32_t, Biped, Biped::kEditorTotal> bipedMap{
 	{ 30, Biped::kHead },
 	{ 31, Biped::kHair },
 	{ 32, Biped::kBody },
@@ -50,42 +46,45 @@ inline constexpr frozen::map<std::uint32_t, Biped, 31> bipedMap{
 	{ 61, Biped::kFX01 },
 };
 
-inline constexpr frozen::map<std::uint32_t, Slot, 31> slotMap = {
-	{ 30, Slot::kHead },
-	{ 31, Slot::kHair },
-	{ 32, Slot::kBody },
-	{ 33, Slot::kHands },
-	{ 34, Slot::kForearms },
-	{ 35, Slot::kAmulet },
-	{ 36, Slot::kRing },
-	{ 37, Slot::kFeet },
-	{ 38, Slot::kCalves },
-	{ 39, Slot::kShield },
-	{ 40, Slot::kTail },
-	{ 41, Slot::kLongHair },
-	{ 42, Slot::kCirclet },
-	{ 43, Slot::kEars },
-	{ 44, Slot::kModMouth },
-	{ 45, Slot::kModNeck },
-	{ 46, Slot::kModChestPrimary },
-	{ 47, Slot::kModBack },
-	{ 48, Slot::kModMisc1 },
-	{ 49, Slot::kModPelvisPrimary },
-	{ 50, Slot::kDecapitateHead },
-	{ 51, Slot::kDecapitate },
-	{ 52, Slot::kModPelvisSecondary },
-	{ 53, Slot::kModLegRight },
-	{ 54, Slot::kModLegLeft },
-	{ 55, Slot::kModFaceJewelry },
-	{ 56, Slot::kModChestSecondary },
-	{ 57, Slot::kModShoulder },
-	{ 58, Slot::kModArmLeft },
-	{ 59, Slot::kModArmRight },
-	{ 60, Slot::kModMisc2 },
-	{ 61, Slot::kFX01 },
+inline constexpr frozen::map<std::uint32_t, BipedSlot, Biped::kEditorTotal> slotMap = {
+	{ 30, BipedSlot::kHead },
+	{ 31, BipedSlot::kHair },
+	{ 32, BipedSlot::kBody },
+	{ 33, BipedSlot::kHands },
+	{ 34, BipedSlot::kForearms },
+	{ 35, BipedSlot::kAmulet },
+	{ 36, BipedSlot::kRing },
+	{ 37, BipedSlot::kFeet },
+	{ 38, BipedSlot::kCalves },
+	{ 39, BipedSlot::kShield },
+	{ 40, BipedSlot::kTail },
+	{ 41, BipedSlot::kLongHair },
+	{ 42, BipedSlot::kCirclet },
+	{ 43, BipedSlot::kEars },
+	{ 44, BipedSlot::kModMouth },
+	{ 45, BipedSlot::kModNeck },
+	{ 46, BipedSlot::kModChestPrimary },
+	{ 47, BipedSlot::kModBack },
+	{ 48, BipedSlot::kModMisc1 },
+	{ 49, BipedSlot::kModPelvisPrimary },
+	{ 50, BipedSlot::kDecapitateHead },
+	{ 51, BipedSlot::kDecapitate },
+	{ 52, BipedSlot::kModPelvisSecondary },
+	{ 53, BipedSlot::kModLegRight },
+	{ 54, BipedSlot::kModLegLeft },
+	{ 55, BipedSlot::kModFaceJewelry },
+	{ 56, BipedSlot::kModChestSecondary },
+	{ 57, BipedSlot::kModShoulder },
+	{ 58, BipedSlot::kModArmLeft },
+	{ 59, BipedSlot::kModArmRight },
+	{ 60, BipedSlot::kModMisc2 },
+	{ 61, BipedSlot::kFX01 },
 };
 
-inline constexpr frozen::set<Biped, 5> headSlots{ Biped::kHead, Biped::kHair, Biped::kLongHair, Biped::kEars, Biped::kDecapitateHead };
-
-inline SlotKeyVec armorSlots;
-inline SlotKeyVec weaponSlots;
+inline constexpr frozen::set<Biped, 5> headSlots{
+    Biped::kHead,
+    Biped::kHair,
+    Biped::kLongHair,
+    Biped::kEars,
+    Biped::kDecapitateHead
+};

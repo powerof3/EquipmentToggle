@@ -1,62 +1,65 @@
 #pragma once
 
+struct Toggle
+{
+	enum class Type : std::int32_t
+	{
+		kDisabled = -1,
+		kPlayerOnly = 0,
+		kFollowerOnly,
+		kPlayerAndFollower,
+		kEveryone
+	};
+
+	[[nodiscard]] bool CanDoToggle(RE::Actor* a_actor) const;
+	[[nodiscard]] bool CanDoPlayerToggle() const;
+	[[nodiscard]] bool CanDoFollowerToggle() const;
+
+	Type toggle{ Type::kDisabled };
+};
+
+struct SlotData
+{
+	bool ContainsHeadSlots();
+
+	struct HotKey
+	{
+		Key key{ Key::kNone };
+		Toggle type{};
+	}
+    hotKey;
+
+	struct Hide
+	{
+		Toggle equipped{};
+		Toggle home{};
+		Toggle dialogue{};
+	}
+    hide;
+
+	struct Unhide
+	{
+		Toggle combat{};
+		Toggle weaponDraw{};
+	}
+    unhide;
+
+	SlotSet slots{};
+};
+
 class Settings
 {
 public:
-	enum class ToggleType : std::int32_t
-	{
-		kDisabled = -1,
-	    kPlayerOnly = 0,
-		kFollowerOnly = 1,
-		kPlayerAndFollower = 2,
-		kEveryone = 3
-	};
-
-    static Settings* GetSingleton();
+	static Settings* GetSingleton();
 
 	void LoadSettings();
 
-    bool CanToggleEquipment(RE::Actor* a_actor) const;
+	void ForEachSlot(std::function<bool(const SlotData& a_slotData)> a_callback) const;
 
-    ToggleType autoToggleType{ ToggleType::kPlayerOnly };
-	ToggleType hotkeyToggleType{ ToggleType::kPlayerOnly };
-
-	bool hideWhenEquipped{ true };
-	bool hideAtHome{ false };
-	bool hideWhenSpeaking{ false };
-
-	bool unhideDuringCombat{ false };
-	bool unhideDuringWeaponDraw{ false };
+	// members
+	std::vector<SlotData> armorSlots;
+	std::vector<SlotData> weaponSlots;
 
 private:
-	enum class DATA
-	{
-		kArmor = 0,
-		kWeapon = 1
-	};
-
-	struct detail
-	{
-		template <class T>
-		static void get_value(CSimpleIniA& a_ini, T& a_value, const char* a_section, const char* a_key, const char* a_comment)
-		{
-			if constexpr (std::is_same_v<bool, T>) {
-				a_value = a_ini.GetBoolValue(a_section, a_key, a_value);
-				a_ini.SetBoolValue(a_section, a_key, a_value, a_comment);
-			} else if constexpr (std::is_floating_point_v<T>) {
-				a_value = static_cast<T>(a_ini.GetDoubleValue(a_section, a_key, a_value));
-				a_ini.SetDoubleValue(a_section, a_key, a_value, a_comment);
-			} else if constexpr (std::is_arithmetic_v<T> || std::is_enum_v<T>) {
-				a_value = string::lexical_cast<T>(a_ini.GetValue(a_section, a_key, std::to_string(std::to_underlying(a_value)).c_str()));
-				a_ini.SetValue(a_section, a_key, std::to_string(std::to_underlying(a_value)).c_str(), a_comment);
-			} else {
-				a_value = a_ini.GetValue(a_section, a_key, a_value.c_str());
-				a_ini.SetValue(a_section, a_key, a_value.c_str(), a_comment);
-			}
-		}
-	};
-
-	std::optional<SlotKeyData> parse_data(const std::string& a_value, DATA a_type) const;
-
-	void get_data_from_ini(const CSimpleIniA& ini, const char* a_section, const char* a_type, SlotKeyVec& a_INIDataVec, DATA a_dataType) const;
+	void LoadSettingsFromJSON_Impl(const nlohmann::json& a_json, const std::string& a_type);
 };

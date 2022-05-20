@@ -12,7 +12,7 @@
 #pragma warning(pop)
 
 #include <ranges>
-#include <SimpleIni.h>
+#include <nlohmann/json.hpp>
 #include <frozen/map.h>
 #include <frozen/set.h>
 #include <xbyak/xbyak.h>
@@ -51,5 +51,4 @@ namespace stl
 #endif
 
 #include "Common.h"
-#include "Hooks.h"
 #include "Version.h"
