@@ -170,12 +170,17 @@ namespace Graphics
 {
 	SlotData GetHeadSlots()
 	{
-		for (auto& slotData : Settings::GetSingleton()->armorSlots) {
-			if (slotData.ContainsHeadSlots()) {
-				return slotData;
+		SlotData slotData{};
+
+	    Settings::GetSingleton()->ForEachArmorSlot([&](const SlotData& a_slotData) {
+			if (a_slotData.ContainsHeadSlots()) {
+				slotData = a_slotData;
+				return false;
 			}
-		}
-		return SlotData{};
+			return true;
+		});
+
+	    return slotData;
 	}
 
 	void ToggleActorEquipment(RE::Actor* a_actor, std::function<bool(const SlotData& a_slotData)> a_func, bool a_hide)

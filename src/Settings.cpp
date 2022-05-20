@@ -34,7 +34,7 @@ bool Toggle::CanDoFollowerToggle() const
 	return toggle != Type::kPlayerOnly;
 }
 
-bool SlotData::ContainsHeadSlots()
+bool SlotData::ContainsHeadSlots() const
 {
 	return std::ranges::any_of(slots, [](const auto& slot) {
 		return slot == Biped::kHead || slot == Biped::kHair || slot == Biped::kLongHair || slot == Biped::kEars || slot == Biped::kDecapitateHead;
@@ -54,6 +54,8 @@ void Settings::LoadSettings()
 	std::ifstream ifs(path);
 	nlohmann::json json = nlohmann::json::parse(ifs);
 
+	logger::info("{:*^30}", "SLOT DATA");
+
 	LoadSettingsFromJSON_Impl(json, "armors");
 	LoadSettingsFromJSON_Impl(json, "weapons");
 
@@ -66,7 +68,7 @@ void Settings::LoadSettingsFromJSON_Impl(const nlohmann::json& a_json, const std
 		return;
 	}
 
-    logger::info("	{}", a_type);
+    logger::info("{}", a_type);
     for (auto& equipment : a_json[a_type]) {
 		SlotData::HotKey hotKey;
         if (equipment.contains("hotKey")) {
@@ -74,8 +76,8 @@ void Settings::LoadSettingsFromJSON_Impl(const nlohmann::json& a_json, const std
 			hotKey.key = j_hotKey["key"].get<Key>();
 			hotKey.type.toggle = j_hotKey["type"].get<Toggle::Type>();
 
-            logger::info("		Key : {}", hotKey.key);
-			logger::info("			Key Toggle : {}", stl::to_underlying(hotKey.type.toggle));
+            logger::info("	Key : {}", hotKey.key);
+			logger::info("		Key Toggle : {}", stl::to_underlying(hotKey.type.toggle));
 		}
 		SlotData::Hide hide;
         if (equipment.contains("hide")) {
@@ -84,10 +86,10 @@ void Settings::LoadSettingsFromJSON_Impl(const nlohmann::json& a_json, const std
 			hide.home.toggle = j_hide["atHome"].get<Toggle::Type>();
 			hide.dialogue.toggle = j_hide["duringDialogue"].get<Toggle::Type>();
 
-			logger::info("		Hide");
-			logger::info("			whenEquipped : {}", stl::to_underlying(hide.equipped.toggle));
-			logger::info("			atHome : {}", stl::to_underlying(hide.home.toggle));
-			logger::info("			duringDialogue : {}", stl::to_underlying(hide.dialogue.toggle));
+			logger::info("	Hide");
+			logger::info("		whenEquipped : {}", stl::to_underlying(hide.equipped.toggle));
+			logger::info("		atHome : {}", stl::to_underlying(hide.home.toggle));
+			logger::info("		duringDialogue : {}", stl::to_underlying(hide.dialogue.toggle));
 		}
 		SlotData::Unhide unhide;
         if (equipment.contains("unhide")) {
@@ -95,17 +97,17 @@ void Settings::LoadSettingsFromJSON_Impl(const nlohmann::json& a_json, const std
 			unhide.combat.toggle = j_unhide["duringCombat"].get<Toggle::Type>();
 			unhide.weaponDraw.toggle = j_unhide["onWeaponDraw"].get<Toggle::Type>();
 
-			logger::info("		Unhide");
-			logger::info("			duringCombat : {}", stl::to_underlying(unhide.combat.toggle));
-			logger::info("			onWeaponDraw : {}", stl::to_underlying(unhide.weaponDraw.toggle));
+			logger::info("	Unhide");
+			logger::info("		duringCombat : {}", stl::to_underlying(unhide.combat.toggle));
+			logger::info("		onWeaponDraw : {}", stl::to_underlying(unhide.weaponDraw.toggle));
 		}
 
         if (!equipment.contains("slots")) {
-			logger::critical("		Slots : missing!");
+			logger::critical("	Slots : missing!");
             continue;
 		}
 
-        logger::info("		Slots");
+        logger::info("	Slots");
 
 		SlotSet slotSet;
 		if (a_type == "armors") {
@@ -118,16 +120,16 @@ void Settings::LoadSettingsFromJSON_Impl(const nlohmann::json& a_json, const std
 				case 37:
 				case 38:
 				case 40:
-					logger::info("			unreplaceable slot {}", slot);
+					logger::info("		unreplaceable slot {}", slot);
 					continue;
 				default:
 					break;
 				}
 				if (slot > 61) {
-					logger::info("			invalid slot {}", slot);
+					logger::info("		invalid slot {}", slot);
 					continue;
 				}
-				logger::info("			slot {}", slot);
+				logger::info("		slot {}", slot);
 				slotSet.insert(bipedMap.at(slot));
 			}
 			armorSlots.emplace_back(SlotData{ hotKey, hide, unhide, slotSet });
@@ -136,6 +138,24 @@ void Settings::LoadSettingsFromJSON_Impl(const nlohmann::json& a_json, const std
 				slotSet.insert(j_slot.get<Biped>());
 			}
 			weaponSlots.emplace_back(SlotData{ hotKey, hide, unhide, slotSet });
+		}
+	}
+}
+
+void Settings::ForEachArmorSlot(std::function<bool(const SlotData& a_slotData)> a_callback) const
+{
+	for (auto& slotData : armorSlots) {
+		if (!a_callback(slotData)) {
+			return;
+		}
+	}
+}
+
+void Settings::ForEachWeaponSlot(std::function<bool(const SlotData& a_slotData)> a_callback) const
+{
+	for (auto& slotData : weaponSlots) {
+		if (!a_callback(slotData)) {
+			return;
 		}
 	}
 }

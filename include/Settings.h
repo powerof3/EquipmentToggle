@@ -20,7 +20,7 @@ struct Toggle
 
 struct SlotData
 {
-	bool ContainsHeadSlots();
+	bool ContainsHeadSlots() const;
 
 	struct HotKey
 	{
@@ -54,12 +54,13 @@ public:
 
 	void LoadSettings();
 
+	void ForEachArmorSlot(std::function<bool(const SlotData& a_slotData)> a_callback) const;
 	void ForEachSlot(std::function<bool(const SlotData& a_slotData)> a_callback) const;
-
-	// members
-	std::vector<SlotData> armorSlots;
-	std::vector<SlotData> weaponSlots;
+	void ForEachWeaponSlot(std::function<bool(const SlotData& a_slotData)> a_callback) const;
 
 private:
 	void LoadSettingsFromJSON_Impl(const nlohmann::json& a_json, const std::string& a_type);
+
+    std::vector<SlotData> armorSlots;
+	std::vector<SlotData> weaponSlots;
 };

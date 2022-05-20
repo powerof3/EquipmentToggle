@@ -30,20 +30,62 @@ namespace Events
 
 	void Manager::Register()
 	{
-		stl::write_vfunc<RE::PlayerCharacter, 0x0E3, PlayerCombat>();
+		logger::info("{:*^30}", "EVENTS");
 
-		if (const auto scripts = RE::ScriptEventSourceHolder::GetSingleton()) {
-			scripts->AddEventSink<RE::TESCombatEvent>(GetSingleton());
-		}
-		if (const auto player = RE::PlayerCharacter::GetSingleton()) {
-			player->AddEventSink<RE::BGSActorCellEvent>(GetSingleton());
-		}
-		if (const auto menuMgr = RE::UI::GetSingleton()) {
-			menuMgr->AddEventSink<RE::MenuOpenCloseEvent>(GetSingleton());
-		}
-		if (const auto inputMgr = RE::BSInputDeviceManager::GetSingleton()) {
-			inputMgr->AddEventSink(GetSingleton());
-		}
+	    bool playerCombat = false;
+		bool npcCombat = false;
+		bool homeHide = false;
+		bool dialogue = false;
+		bool useHotKey = false;
+
+		Settings::GetSingleton()->ForEachSlot([&](const SlotData& a_slotData) {
+			if (playerCombat && npcCombat && homeHide && dialogue && useHotKey) {
+				return false;
+			}
+
+			auto& [hotKey, hide, unhide, slots] = a_slotData;
+
+			if (!playerCombat && unhide.combat.CanDoPlayerToggle()) {
+				playerCombat = true;
+				stl::write_vfunc<RE::PlayerCharacter, 0x0E3, PlayerCombat>();
+
+				logger::info("Registered for player combat hook");
+			}
+			if (!npcCombat && unhide.combat.CanDoFollowerToggle()) {
+				npcCombat = true;
+				if (const auto scripts = RE::ScriptEventSourceHolder::GetSingleton()) {
+					scripts->AddEventSink<RE::TESCombatEvent>(GetSingleton());
+
+					logger::info("Registered for NPC combat");
+				}
+			}
+			if (!homeHide && hide.home.toggle != Toggle::Type::kDisabled) {
+				homeHide = true;
+				if (const auto player = RE::PlayerCharacter::GetSingleton()) {
+					player->AddEventSink<RE::BGSActorCellEvent>(GetSingleton());
+
+					logger::info("Registered for player cell change event");
+				}
+			}
+			if (!dialogue && hide.dialogue.toggle != Toggle::Type::kDisabled) {
+				dialogue = true;
+				if (const auto menuMgr = RE::UI::GetSingleton()) {
+					menuMgr->AddEventSink<RE::MenuOpenCloseEvent>(GetSingleton());
+
+					logger::info("Registered for dialogue menu event");
+				}
+			}
+			if (!useHotKey && hotKey.key != Key::kNone && hotKey.type.toggle != Toggle::Type::kDisabled) {
+				useHotKey = true;
+				if (const auto inputMgr = RE::BSInputDeviceManager::GetSingleton()) {
+					inputMgr->AddEventSink(GetSingleton());
+
+					logger::info("Registered for hotkey event");
+				}
+			}
+
+			return true;
+		});
 	}
 
 	EventResult Manager::ProcessEvent(const RE::TESCombatEvent* evn, RE::BSTEventSource<RE::TESCombatEvent>*)
@@ -109,7 +151,8 @@ namespace Events
 
 			Graphics::ToggleFollowerEquipment([](const SlotData& a_slotData) {
 				return a_slotData.hide.home.CanDoFollowerToggle();
-			}, playerInHouse);
+			},
+				playerInHouse);
 		}
 
 		return EventResult::kContinue;
