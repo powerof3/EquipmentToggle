@@ -21,19 +21,6 @@ namespace Events
 		EventResult ProcessEvent(const RE::MenuOpenCloseEvent* a_evn, RE::BSTEventSource<RE::MenuOpenCloseEvent>*) override;
 
 	private:
-		struct detail
-		{
-			static bool is_cell_home(const RE::TESObjectCELL* a_cell)
-			{
-				if (a_cell->IsInteriorCell()) {
-					if (const auto loc = a_cell->GetLocation(); loc) {
-						return loc->HasKeywordString(PlayerHome) || loc->HasKeywordString(Inn);
-					}
-				}
-				return false;
-			}
-		};
-
 	    struct UpdatePlayerCombat
 		{
 			static void thunk(RE::PlayerCharacter* a_this, float a_delta);
