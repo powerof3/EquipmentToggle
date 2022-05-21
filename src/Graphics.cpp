@@ -184,9 +184,9 @@ void Graphics::toggle_slots(RE::Actor* a_actor, const RE::BSTSmartPointer<RE::Bi
 
 	SKSE::GetTaskInterface()->AddTask([a_biped, a_slots, a_actor, a_root]() {
 		for (auto& slot : a_slots) {
-			const auto& object = a_biped->objects[slot];
+		    const auto& object = a_biped->objects[slot];
 			if (const auto node = object.partClone; node) {
-				const auto hiddenState = Serialization::GetToggleState(a_actor, slot);
+			    const auto hiddenState = Serialization::GetToggleState(a_actor, slot);
 				Serialization::SetToggleState(a_actor, slot, !hiddenState);
 
 				node->CullNode(!hiddenState);

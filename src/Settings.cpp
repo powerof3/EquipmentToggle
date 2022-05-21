@@ -124,7 +124,7 @@ void Settings::LoadSettingsFromJSON_Impl(const nlohmann::json& a_json, const std
 			logger::info("	Unhide : settings not found");
 		}
 
-		if (!equipment.contains("slots") || equipment["slots"].empty() || !equipment["slots"].is_array()) {
+		if (!equipment.contains("slots") || equipment["slots"].empty()) {
 			logger::critical("	Slots : missing!");
 			continue;
 		}
@@ -157,7 +157,8 @@ void Settings::LoadSettingsFromJSON_Impl(const nlohmann::json& a_json, const std
 			armorSlots.emplace_back(SlotData{ hotKey, hide, unhide, slotSet });
 		} else {
 			for (auto& j_slot : equipment["slots"]) {
-				slotSet.insert(j_slot.get<Biped>());
+			    logger::info("		slot {}", j_slot.get<Biped>());
+			    slotSet.insert(j_slot.get<Biped>());
 			}
 			weaponSlots.emplace_back(SlotData{ hotKey, hide, unhide, slotSet });
 		}

@@ -7,6 +7,7 @@ void OnInit(SKSE::MessagingInterface::Message* a_msg)
 {
 	if (a_msg->type == SKSE::MessagingInterface::kDataLoaded) {
 		Events::Manager::Register();
+		Events::AnimationManager::Register();
 	}
 }
 
@@ -72,7 +73,7 @@ extern "C" DLLEXPORT bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadInterface* a_s
 
 	SKSE::Init(a_skse);
 
-	SKSE::AllocTrampoline(70);
+	SKSE::AllocTrampoline(112);
 
 	Settings::GetSingleton()->LoadSettings();
 

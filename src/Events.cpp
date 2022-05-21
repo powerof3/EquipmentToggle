@@ -19,6 +19,8 @@ namespace Events
 		bool dialogue = false;
 		bool useHotKey = false;
 
+		const auto scripts = RE::ScriptEventSourceHolder::GetSingleton();
+
 		Settings::GetSingleton()->ForEachSlot([&](const SlotData& a_slotData) {
 			if (playerCombat && npcCombat && homeHide && dialogue && useHotKey) {
 				return false;
@@ -44,7 +46,7 @@ namespace Events
 			}
 			if (!npcCombat && unhide.combat.CanDoFollowerToggle()) {
 				npcCombat = true;
-				if (const auto scripts = RE::ScriptEventSourceHolder::GetSingleton()) {
+				if (scripts) {
 					scripts->AddEventSink<RE::TESCombatEvent>(GetSingleton());
 
 					logger::info("Registered for NPC combat");
@@ -77,6 +79,33 @@ namespace Events
 
 			return true;
 		});
+	}
+
+	void Manager::UpdatePlayerCombat::thunk(RE::PlayerCharacter* a_this, float a_delta)
+	{
+		func(a_this, a_delta);
+
+		const bool isInCombat = a_this->IsInCombat();
+
+		if (isInCombat) {
+			if (!playerInCombat) {
+				playerInCombat = true;
+				Graphics::ToggleActorEquipment(
+					a_this, [](const SlotData& a_slotData) {
+						return a_slotData.unhide.combat.CanDoPlayerToggle();
+					},
+					Graphics::State::kUnhide);
+			}
+		} else {
+			if (playerInCombat) {
+				playerInCombat = false;
+				Graphics::ToggleActorEquipment(
+					a_this, [](const SlotData& a_slotData) {
+						return a_slotData.unhide.combat.CanDoPlayerToggle();
+					},
+					Graphics::State::kHide);
+			}
+		}
 	}
 
 	EventResult Manager::ProcessEvent(const RE::TESCombatEvent* evn, RE::BSTEventSource<RE::TESCombatEvent>*)
@@ -225,30 +254,130 @@ namespace Events
 		return EventResult::kContinue;
 	}
 
-	void Manager::UpdatePlayerCombat::thunk(RE::PlayerCharacter* a_this, float a_delta)
+	AnimationManager* AnimationManager::GetSingleton()
 	{
-		func(a_this, a_delta);
+		static AnimationManager singleton;
+		return std::addressof(singleton);
+	}
 
-		const bool isInCombat = a_this->IsInCombat();
+	void AnimationManager::Register()
+	{
+		bool weaponDraw = false;
 
-		if (isInCombat) {
-			if (!playerInCombat) {
-				playerInCombat = true;
-				Graphics::ToggleActorEquipment(
-					a_this, [](const SlotData& a_slotData) {
-						return a_slotData.unhide.combat.CanDoPlayerToggle();
-					},
-					Graphics::State::kUnhide);
+		const auto scripts = RE::ScriptEventSourceHolder::GetSingleton();
+
+		Settings::GetSingleton()->ForEachSlot([&](const SlotData& a_slotData) {
+			if (weaponDraw) {
+				return false;
 			}
-		} else {
-			if (playerInCombat) {
-				playerInCombat = false;
-				Graphics::ToggleActorEquipment(
-					a_this, [](const SlotData& a_slotData) {
-						return a_slotData.unhide.combat.CanDoPlayerToggle();
-					},
-					Graphics::State::kHide);
+
+			auto& [hotKey, hide, unhide, slots] = a_slotData;
+
+			if (!weaponDraw && unhide.weaponDraw.toggle != Toggle::Type::kDisabled) {
+				weaponDraw = true;
+
+				if (scripts) {
+					scripts->AddEventSink<RE::TESObjectLoadedEvent>(GetSingleton());
+					scripts->AddEventSink<RE::TESSwitchRaceCompleteEvent>(GetSingleton());
+
+					logger::info("Registered for weapon draw event");
+				}
 			}
+
+			return true;
+		});
+	}
+
+    void AnimationManager::RegisterForAnimationEventSink(RE::Actor* a_actor)
+	{
+		bool registeredForAnimEvent = false;
+
+		Settings::GetSingleton()->ForEachSlot([&](const SlotData& a_slotData) {
+			if (registeredForAnimEvent) {
+				return false;
+			}
+
+			if (!registeredForAnimEvent && a_slotData.unhide.weaponDraw.CanDoToggle(a_actor)) {
+				registeredForAnimEvent = true;
+				a_actor->AddAnimationGraphEventSink(GetSingleton());
+			}
+
+			return true;
+		});
+	}
+
+	EventResult AnimationManager::ProcessEvent(const RE::TESObjectLoadedEvent* a_evn, RE::BSTEventSource<RE::TESObjectLoadedEvent>*)
+	{
+		if (!a_evn) {
+			return EventResult::kContinue;
 		}
+
+		const auto actor = RE::TESForm::LookupByID<RE::Actor>(a_evn->formID);
+		if (!actor) {
+			return EventResult::kContinue;
+		}
+
+		RegisterForAnimationEventSink(actor);
+
+		return EventResult::kContinue;
+	}
+
+	EventResult AnimationManager::ProcessEvent(const RE::TESSwitchRaceCompleteEvent* a_evn, RE::BSTEventSource<RE::TESSwitchRaceCompleteEvent>*)
+	{
+		if (!a_evn || !a_evn->subject) {
+			return EventResult::kContinue;
+		}
+
+		const auto actor = a_evn->subject->As<RE::Actor>();
+		if (!actor || !actor->HasKeywordString(NPC)) {
+			return EventResult::kContinue;
+		}
+
+		bool registeredForAnimEvent = false;
+
+		Settings::GetSingleton()->ForEachSlot([&](const SlotData& a_slotData) {
+			if (registeredForAnimEvent) {
+				return false;
+			}
+
+			if (!registeredForAnimEvent && a_slotData.unhide.weaponDraw.CanDoToggle(actor)) {
+				registeredForAnimEvent = true;
+				if (actor->AddAnimationGraphEventSink(GetSingleton())) {
+					logger::info("registered animation event for {} on race change", actor->GetName());
+				}
+			}
+
+			return true;
+		});
+
+		return EventResult::kContinue;
+	}
+
+	EventResult AnimationManager::ProcessEvent(const RE::BSAnimationGraphEvent* a_evn, RE::BSTEventSource<RE::BSAnimationGraphEvent>*)
+	{
+		if (!a_evn || !a_evn->holder) {
+			return EventResult::kContinue;
+		}
+
+		const auto actor = const_cast<RE::Actor*>(a_evn->holder->As<RE::Actor>());
+		if (!actor) {
+			return EventResult::kContinue;
+		}
+
+		if (a_evn->tag == "weapondraw") {
+			Graphics::ToggleActorEquipment(
+				actor, [&](const SlotData& a_slotData) {
+					return a_slotData.unhide.weaponDraw.CanDoToggle(actor);
+				},
+				Graphics::State::kUnhide);
+		} else if (a_evn->tag == "weaponsheathe") {
+			Graphics::ToggleActorEquipment(
+				actor, [&](const SlotData& a_slotData) {
+					return a_slotData.unhide.weaponDraw.CanDoToggle(actor);
+				},
+				Graphics::State::kHide);
+		}
+
+		return EventResult::kContinue;
 	}
 }
