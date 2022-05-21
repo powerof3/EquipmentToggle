@@ -52,7 +52,7 @@ void Settings::LoadSettings()
 	constexpr auto path = L"Data/SKSE/Plugins/po3_EquipmentToggle.json";
 
 	std::ifstream ifs(path);
-	nlohmann::json json = nlohmann::json::parse(ifs);
+	nlohmann::json json = nlohmann::json::parse(ifs, nullptr, true, true);
 
 	logger::info("{:*^30}", "SLOT DATA");
 
@@ -64,50 +64,72 @@ void Settings::LoadSettings()
 
 void Settings::LoadSettingsFromJSON_Impl(const nlohmann::json& a_json, const std::string& a_type)
 {
-	if (!a_json.contains(a_type) || a_json[a_type].empty()) {
+	if (!a_json.contains(a_type) || a_json[a_type].empty() || !a_json[a_type].is_array()) {
 		return;
 	}
 
-    logger::info("{}", a_type);
-    for (auto& equipment : a_json[a_type]) {
+	logger::info("{}", a_type);
+	for (auto& equipment : a_json[a_type]) {
 		SlotData::HotKey hotKey;
-        if (equipment.contains("hotKey")) {
-			auto& j_hotKey = equipment["hotKey"];
-			hotKey.key = j_hotKey["key"].get<Key>();
-			hotKey.type.toggle = j_hotKey["type"].get<Toggle::Type>();
+		try {
+			auto& j_hotKey = equipment.at("hotKey");
+			try {
+				hotKey.key = j_hotKey.at("key").get<Key>();
+			} catch (...) {}
+			try {
+				hotKey.type.toggle = j_hotKey.at("type").get<Toggle::Type>();
+			} catch (...) {}
 
-            logger::info("	Key : {}", hotKey.key);
-			logger::info("		Key Toggle : {}", stl::to_underlying(hotKey.type.toggle));
+			logger::info("	Key : {}", hotKey.key);
+			logger::info("		toggle type : {}", stl::to_underlying(hotKey.type.toggle));
+		} catch (...) {
+			logger::info("	Key : not found");
 		}
+
 		SlotData::Hide hide;
-        if (equipment.contains("hide")) {
-			auto& j_hide = equipment["hide"];
-			hide.equipped.toggle = j_hide["whenEquipped"].get<Toggle::Type>();
-			hide.home.toggle = j_hide["atHome"].get<Toggle::Type>();
-			hide.dialogue.toggle = j_hide["duringDialogue"].get<Toggle::Type>();
+		try {
+			auto& j_hide = equipment.at("hide");
+			try {
+				hide.equipped.toggle = j_hide.at("whenEquipped").get<Toggle::Type>();
+			} catch (...) {}
+			try {
+				hide.home.toggle = j_hide.at("atHome").get<Toggle::Type>();
+			} catch (...) {}
+			try {
+				hide.dialogue.toggle = j_hide.at("duringDialogue").get<Toggle::Type>();
+			} catch (...) {}
 
 			logger::info("	Hide");
 			logger::info("		whenEquipped : {}", stl::to_underlying(hide.equipped.toggle));
 			logger::info("		atHome : {}", stl::to_underlying(hide.home.toggle));
 			logger::info("		duringDialogue : {}", stl::to_underlying(hide.dialogue.toggle));
+		} catch (...) {
+			logger::info("	Hide : settings not found");
 		}
+
 		SlotData::Unhide unhide;
-        if (equipment.contains("unhide")) {
-			auto& j_unhide = equipment["unhide"];
-			unhide.combat.toggle = j_unhide["duringCombat"].get<Toggle::Type>();
-			unhide.weaponDraw.toggle = j_unhide["onWeaponDraw"].get<Toggle::Type>();
+		try {
+			auto& j_hide = equipment.at("unhide");
+			try {
+				unhide.combat.toggle = j_hide.at("duringCombat").get<Toggle::Type>();
+			} catch (...) {}
+			try {
+				unhide.weaponDraw.toggle = j_hide.at("onWeaponDraw").get<Toggle::Type>();
+			} catch (...) {}
 
 			logger::info("	Unhide");
 			logger::info("		duringCombat : {}", stl::to_underlying(unhide.combat.toggle));
 			logger::info("		onWeaponDraw : {}", stl::to_underlying(unhide.weaponDraw.toggle));
+		} catch (...) {
+			logger::info("	Unhide : settings not found");
 		}
 
-        if (!equipment.contains("slots")) {
+		if (!equipment.contains("slots") || equipment["slots"].empty() || !equipment["slots"].is_array()) {
 			logger::critical("	Slots : missing!");
-            continue;
+			continue;
 		}
 
-        logger::info("	Slots");
+		logger::info("	Slots");
 
 		SlotSet slotSet;
 		if (a_type == "armors") {

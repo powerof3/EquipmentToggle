@@ -26,23 +26,20 @@ struct SlotData
 	{
 		Key key{ Key::kNone };
 		Toggle type{};
-	}
-    hotKey;
+	} hotKey;
 
 	struct Hide
 	{
 		Toggle equipped{};
 		Toggle home{};
 		Toggle dialogue{};
-	}
-    hide;
+	} hide;
 
 	struct Unhide
 	{
 		Toggle combat{};
 		Toggle weaponDraw{};
-	}
-    unhide;
+	} unhide;
 
 	SlotSet slots{};
 };
@@ -61,6 +58,6 @@ public:
 private:
 	void LoadSettingsFromJSON_Impl(const nlohmann::json& a_json, const std::string& a_type);
 
-    std::vector<SlotData> armorSlots;
+	std::vector<SlotData> armorSlots;
 	std::vector<SlotData> weaponSlots;
 };
