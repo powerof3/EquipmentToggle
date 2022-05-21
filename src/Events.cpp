@@ -3,25 +3,6 @@
 
 namespace Events
 {
-	struct detail
-	{
-		static bool is_cell_home(const RE::TESObjectCELL* a_cell)
-		{
-			if (a_cell->IsInteriorCell()) {
-				if (const auto loc = a_cell->GetLocation(); loc) {
-					return loc->HasKeywordString(PlayerHome) || loc->HasKeywordString(Inn);
-				}
-			}
-			return false;
-		}
-
-		static bool is_in_menu()
-		{
-			const auto UI = RE::UI::GetSingleton();
-			return UI && (UI->GameIsPaused() || UI->IsModalMenuOpen() || UI->IsApplicationMenuOpen());
-		}
-	};
-
 	Manager* Manager::GetSingleton()
 	{
 		static Manager singleton;
@@ -32,7 +13,7 @@ namespace Events
 	{
 		logger::info("{:*^30}", "EVENTS");
 
-	    bool playerCombat = false;
+		bool playerCombat = false;
 		bool npcCombat = false;
 		bool homeHide = false;
 		bool dialogue = false;
@@ -47,7 +28,17 @@ namespace Events
 
 			if (!playerCombat && unhide.combat.CanDoPlayerToggle()) {
 				playerCombat = true;
-				stl::write_vfunc<RE::PlayerCharacter, 0x0E3, PlayerCombat>();
+
+				std::array targets{
+					std::make_pair(RELOCATION_ID(45569, 46869), 0xB0),                  // CombatManager::Update
+					std::make_pair(RELOCATION_ID(39465, 40542), OFFSET(0x193, 0x17C)),  // PlayerCharacter::FinishLoadGame
+					std::make_pair(RELOCATION_ID(39378, 40450), OFFSET(0x183, 0x18C)),  // PlayerCharacter::UpdateFreeCamera
+				};
+
+				for (const auto& [id, offset] : targets) {
+					REL::Relocation<std::uintptr_t> target{ id, offset };
+					stl::write_thunk_call<UpdatePlayerCombat>(target.address());
+				}
 
 				logger::info("Registered for player combat hook");
 			}
@@ -105,10 +96,10 @@ namespace Events
 
 		switch (*evn->newState) {
 		case RE::ACTOR_COMBAT_STATE::kCombat:
-			Graphics::ToggleActorEquipment(actor, can_toggle, false);
+			Graphics::ToggleActorEquipment(actor, can_toggle, Graphics::State::kUnhide);
 			break;
 		case RE::ACTOR_COMBAT_STATE::kNone:
-			Graphics::ToggleActorEquipment(actor, can_toggle, true);
+			Graphics::ToggleActorEquipment(actor, can_toggle, Graphics::State::kHide);
 			break;
 		default:
 			break;
@@ -133,8 +124,17 @@ namespace Events
 			return EventResult::kContinue;
 		}
 
+		constexpr auto is_cell_home = [&]() {
+			if (cell->IsInteriorCell()) {
+				if (const auto loc = cell->GetLocation(); loc) {
+					return loc->HasKeywordString(PlayerHome) || loc->HasKeywordString(Inn);
+				}
+			}
+			return false;
+		};
+
 		bool result = false;
-		if (detail::is_cell_home(cell)) {
+		if (is_cell_home()) {
 			playerInHouse = true;
 			result = true;
 		} else if (playerInHouse) {
@@ -147,12 +147,12 @@ namespace Events
 				player, [&](const SlotData& a_slotData) {
 					return a_slotData.hide.home.CanDoPlayerToggle();
 				},
-				playerInHouse);
+				playerInHouse ? Graphics::State::kHide : Graphics::State::kUnhide);
 
 			Graphics::ToggleFollowerEquipment([](const SlotData& a_slotData) {
 				return a_slotData.hide.home.CanDoFollowerToggle();
 			},
-				playerInHouse);
+				playerInHouse ? Graphics::State::kHide : Graphics::State::kUnhide);
 		}
 
 		return EventResult::kContinue;
@@ -163,7 +163,11 @@ namespace Events
 		using InputType = RE::INPUT_EVENT_TYPE;
 		using Keyboard = RE::BSWin32KeyboardDevice::Key;
 
-		if (!a_evn || detail::is_in_menu()) {
+		if (!a_evn) {
+			return EventResult::kContinue;
+		}
+
+		if (const auto UI = RE::UI::GetSingleton(); UI->GameIsPaused() || UI->IsModalMenuOpen() || UI->IsApplicationMenuOpen()) {
 			return EventResult::kContinue;
 		}
 
@@ -204,7 +208,7 @@ namespace Events
 					player, [](const SlotData& a_slotData) {
 						return a_slotData.hide.dialogue.CanDoPlayerToggle();
 					},
-					a_evn->opening);
+					static_cast<Graphics::State>(a_evn->opening));
 
 				const auto dialogueTarget = RE::MenuTopicManager::GetSingleton()->speaker.get();
 
@@ -213,7 +217,7 @@ namespace Events
 						dialogueTargetActor, [&](const SlotData& a_slotData) {
 							return a_slotData.hide.dialogue.CanDoToggle(dialogueTargetActor);
 						},
-						a_evn->opening);
+						static_cast<Graphics::State>(a_evn->opening));
 				}
 			}
 		}
@@ -221,9 +225,12 @@ namespace Events
 		return EventResult::kContinue;
 	}
 
-	bool Manager::PlayerCombat::thunk(RE::PlayerCharacter* a_this)
+	void Manager::UpdatePlayerCombat::thunk(RE::PlayerCharacter* a_this, float a_delta)
 	{
-		const auto isInCombat = func(a_this);
+		func(a_this, a_delta);
+
+		const bool isInCombat = a_this->IsInCombat();
+
 		if (isInCombat) {
 			if (!playerInCombat) {
 				playerInCombat = true;
@@ -231,7 +238,7 @@ namespace Events
 					a_this, [](const SlotData& a_slotData) {
 						return a_slotData.unhide.combat.CanDoPlayerToggle();
 					},
-					true);
+					Graphics::State::kUnhide);
 			}
 		} else {
 			if (playerInCombat) {
@@ -240,9 +247,8 @@ namespace Events
 					a_this, [](const SlotData& a_slotData) {
 						return a_slotData.unhide.combat.CanDoPlayerToggle();
 					},
-					false);
+					Graphics::State::kHide);
 			}
 		}
-		return isInCombat;
 	}
 }

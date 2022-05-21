@@ -114,7 +114,7 @@ namespace Hooks
 			static RE::NiAVObject* thunk(RE::Actor* a_actor)
 			{
 				const auto root = func(a_actor);
-				if (a_actor && root && Graphics::ToggleActorHeadParts(a_actor, true)) {
+				if (a_actor && root && Graphics::ToggleActorHeadParts(a_actor, Graphics::State::kHide)) {
 					return nullptr;
 				}
 
