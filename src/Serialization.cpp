@@ -98,6 +98,8 @@ namespace Serialization
 			ofs << std::setw(4) << jsonOut;
 		}
 		ofs.close();
+
+		logger::info("Saving slot data to {}.json", a_savePath);
 	}
 
     void Load(const std::string& a_savePath)
@@ -111,11 +113,13 @@ namespace Serialization
 			auto version = jsonIn["Version"].get<std::uint32_t>();
 			if (version != kSerializationVersion) {
 				AutoToggleMap::GetSingleton()->Clear();
-			    logger::critical("[Serialization] {} : expected {}, got {}", a_savePath, kSerializationVersion, version);
+			    logger::critical("{} : expected {}, got {}", a_savePath, kSerializationVersion, version);
 				return;
 			}
 
 		    AutoToggleMap::GetSingleton()->Load(jsonIn);
+
+			logger::info("Loading slot data from {}.json", a_savePath);
 		}
 		ifs.close();
 	}
@@ -143,19 +147,26 @@ namespace Serialization
 			return path;
 		};
 
-		const auto directory = get_save_directory();
-		if (!directory) {
+		const auto saveDir = get_save_directory();
+		if (!saveDir) {
 			return;
 		}
 
-	    for (const auto& entry : std::filesystem::directory_iterator(folderPath)) {
-			if (entry.exists() && !entry.path().empty() && entry.path().extension() == ".json"sv) {
-				auto saveFileName = entry.path().stem().string();
-				auto savePath = fmt::format("{}{}.ess", directory->string(), saveFileName);
-			    if (!std::filesystem::exists(savePath)) {
-					logger::info("[Serialization] Cleaning up unreferenced {} save data", saveFileName);
-				    const auto serializedSlotsPath = fmt::format(filePath, saveFileName);
-					std::filesystem::remove(serializedSlotsPath);
+		logger::info("{:*^30}", "SERIALIZATION");
+
+		std::filesystem::directory_entry slotDataDir{ folderPath };
+		if (!slotDataDir.exists()) {
+			std::filesystem::create_directory(slotDataDir);
+		} else {
+			for (const auto& entry : std::filesystem::directory_iterator(slotDataDir)) {
+				if (entry.exists() && !entry.path().empty() && entry.path().extension() == ".json"sv) {
+					auto saveFileName = entry.path().stem().string();
+					auto savePath = fmt::format("{}{}.ess", saveDir->string(), saveFileName);
+					if (!std::filesystem::exists(savePath)) {
+						logger::info("Cleaning up unreferenced {} save data", saveFileName);
+						const auto serializedSlotsPath = fmt::format(filePath, saveFileName);
+						std::filesystem::remove(serializedSlotsPath);
+					}
 				}
 			}
 		}

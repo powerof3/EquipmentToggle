@@ -3,8 +3,8 @@
 namespace Serialization
 {
 	constexpr std::uint32_t kSerializationVersion = 1;
-	constexpr std::string_view folderPath = "Data/EquipmentToggle/SaveData/"sv;
-    constexpr std::string_view filePath = "Data/EquipmentToggle/SaveData/{}.json"sv;
+	constexpr std::string_view folderPath = "Data/EquipmentToggle/SlotData/"sv;
+    constexpr std::string_view filePath = "Data/EquipmentToggle/SlotData/{}.json"sv;
 
 	class AutoToggleMap
 	{
