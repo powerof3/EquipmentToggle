@@ -57,13 +57,14 @@ void Settings::LoadSettings()
 	constexpr auto path = L"Data/SKSE/Plugins/po3_EquipmentToggle.json";
 
 	std::ifstream ifs(path);
-	nlohmann::json json = nlohmann::json::parse(ifs, nullptr, true, true);
+	if (ifs.is_open()) {
+		nlohmann::json json = nlohmann::json::parse(ifs, nullptr, true, true);
 
-	logger::info("{:*^30}", "SLOT DATA");
+		logger::info("{:*^30}", "SLOT DATA");
 
-	LoadSettingsFromJSON_Impl(json, "armors");
-	LoadSettingsFromJSON_Impl(json, "weapons");
-
+		LoadSettingsFromJSON_Impl(json, "armors");
+		LoadSettingsFromJSON_Impl(json, "weapons");
+	}
 	ifs.close();
 }
 

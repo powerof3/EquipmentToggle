@@ -2,9 +2,9 @@
 
 namespace Serialization
 {
-	constexpr std::uint32_t kSerializationVersion = 2;
-	constexpr std::uint32_t kEquipmentToggle = 'ETOG';
-	constexpr std::uint32_t kAutoToggle = 'TOGG';
+	constexpr std::uint32_t kSerializationVersion = 1;
+	constexpr std::string_view folderPath = "Data/EquipmentToggle/SaveData/"sv;
+    constexpr std::string_view filePath = "Data/EquipmentToggle/SaveData/{}.json"sv;
 
 	class AutoToggleMap
 	{
@@ -21,14 +21,13 @@ namespace Serialization
 			return &singleton;
 		}
 
-		void Add(const RE::Actor* a_actor, Biped a_slot, Slot::State a_toggleState, bool a_firstPerson);
-		bool Remove(const RE::Actor* a_actor);
-		std::optional<Slot::State> GetToggleState(const RE::Actor* a_actor, Biped a_slot, bool a_firstPerson);
+		std::optional<Slot::State> GetToggleState(RE::Actor* a_actor, Biped a_slot, bool a_firstPerson);
+	    void Add(RE::Actor* a_actor, Biped a_slot, Slot::State a_toggleState, bool a_firstPerson);
+		bool Remove(RE::Actor* a_actor);
 
+		bool Save(nlohmann::json& a_intfc);
+		bool Load(const nlohmann::json& a_intfc);
 		void Clear();
-		bool Save(SKSE::SerializationInterface* a_intfc, std::uint32_t a_type, std::uint32_t a_version);
-		bool Save(SKSE::SerializationInterface* a_intfc);
-		bool Load(SKSE::SerializationInterface* a_intfc);
 
 	protected:
 		AutoToggleMap() = default;
@@ -43,15 +42,15 @@ namespace Serialization
 		using Locker = std::lock_guard<Lock>;
 
 		mutable Lock _lock{};
-		std::map<RE::FormID, std::map<Biped, ToggleState>> _map{};
+		std::map<RE::RefHandle, std::map<Biped, ToggleState>> _map{};
 	};
 
-	std::string DecodeTypeCode(std::uint32_t a_typeCode);
+	void Save(const std::string& a_savePath);
+	void Load(const std::string& a_savePath);
+	void Delete(const std::string& a_savePath);
 
-	void SaveCallback(SKSE::SerializationInterface* a_intfc);
-	void LoadCallback(SKSE::SerializationInterface* a_intfc);
-	void RevertCallback(SKSE::SerializationInterface* a_intfc);
+    void ClearUnreferencedSaveData();
 
-	void SetToggleState(const RE::Actor* a_actor, Biped a_slot, Slot::State a_state, bool a_firstPerson);
-	Slot::State GetToggleState(const RE::Actor* a_actor, Biped a_slot, bool a_firstPerson);
+	void SetToggleState(RE::Actor* a_actor, Biped a_slot, Slot::State a_state, bool a_firstPerson);
+	Slot::State GetToggleState(RE::Actor* a_actor, Biped a_slot, bool a_firstPerson);
 }

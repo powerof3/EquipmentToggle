@@ -1,5 +1,6 @@
 #include "Graphics.h"
 #include "Serialization.h"
+#include "Settings.h"
 
 void Graphics::detail::toggle_partition(RE::BSGeometry& a_shape, const RE::TESObjectARMA& a_arma, bool a_hide)
 {

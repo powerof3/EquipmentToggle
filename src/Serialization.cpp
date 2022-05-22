@@ -1,32 +1,34 @@
 #include "Serialization.h"
 
+#include <iostream>
+
 namespace Serialization
 {
-	void AutoToggleMap::Add(const RE::Actor* a_actor, Biped a_slot, Slot::State a_toggleState, bool a_firstPerson)
+	std::optional<Slot::State> AutoToggleMap::GetToggleState(RE::Actor* a_actor, Biped a_slot, bool a_firstPerson)
 	{
 		Locker locker(_lock);
-		if (a_firstPerson) {
-			_map[a_actor->GetFormID()][a_slot].firstPerson = a_toggleState;
-		} else {
-			_map[a_actor->GetFormID()][a_slot].thirdPerson = a_toggleState;
-		}
-	}
-
-	bool AutoToggleMap::Remove(const RE::Actor* a_actor)
-	{
-		Locker locker(_lock);
-		return _map.erase(a_actor->GetFormID()) != 0;
-	}
-
-	std::optional<Slot::State> AutoToggleMap::GetToggleState(const RE::Actor* a_actor, Biped a_slot, bool a_firstPerson)
-	{
-		Locker locker(_lock);
-		if (auto ptrIt = _map.find(a_actor->GetFormID()); ptrIt != _map.end()) {
+	    if (auto ptrIt = _map.find(a_actor->CreateRefHandle().native_handle()); ptrIt != _map.end()) {
 			if (auto slotIt = ptrIt->second.find(a_slot); slotIt != ptrIt->second.end()) {
 				return a_firstPerson ? slotIt->second.firstPerson : slotIt->second.thirdPerson;
 			}
 		}
 		return std::nullopt;
+	}
+
+    void AutoToggleMap::Add(RE::Actor* a_actor, Biped a_slot, Slot::State a_toggleState, bool a_firstPerson)
+	{
+		Locker locker(_lock);
+		if (a_firstPerson) {
+			_map[a_actor->CreateRefHandle().native_handle()][a_slot].firstPerson = a_toggleState;
+		} else {
+			_map[a_actor->CreateRefHandle().native_handle()][a_slot].thirdPerson = a_toggleState;
+		}
+	}
+
+	bool AutoToggleMap::Remove(RE::Actor* a_actor)
+	{
+		Locker locker(_lock);
+		return _map.erase(a_actor->CreateRefHandle().native_handle()) != 0;
 	}
 
 	void AutoToggleMap::Clear()
@@ -35,156 +37,131 @@ namespace Serialization
 		_map.clear();
 	}
 
-	bool AutoToggleMap::Save(SKSE::SerializationInterface* a_intfc, std::uint32_t a_type, std::uint32_t a_version)
-	{
-		if (!a_intfc->OpenRecord(a_type, a_version)) {
-			logger::error("Failed to open serialization record!"sv);
-			return false;
-		} else {
-			return Save(a_intfc);
-		}
-	}
-
-	bool AutoToggleMap::Save(SKSE::SerializationInterface* a_intfc)
-	{
+    bool AutoToggleMap::Save(nlohmann::json& a_intfc)
+    {
 		assert(a_intfc);
 		Locker locker(_lock);
 
-		const std::size_t numActors = _map.size();
-		if (!a_intfc->WriteRecordData(numActors)) {
-			logger::error("Failed to save number of actors ({})", numActors);
-			return false;
-		}
+		a_intfc["Version"] = kSerializationVersion;
 
-		for (const auto& [formID, slots] : _map) {
-			if (!a_intfc->WriteRecordData(formID)) {
-				logger::error("Failed to save formID ({:X})", formID);
-				return false;
-			}
-			const std::size_t numSlots = slots.size();
-			if (!a_intfc->WriteRecordData(numSlots)) {
-				logger::error("Failed to save number of toggles ({})", numActors);
-				return false;
-			}
+		for (auto& [refHandle, slots] : _map) {
+			auto& j_actor = a_intfc[std::to_string(refHandle)];
 			for (const auto& [slot, state] : slots) {
-				if (!a_intfc->WriteRecordData(slot)) {
-					logger::error("Failed to save slot ({}) for {:X}", slot, formID);
-					return false;
+				auto& j_Slot = j_actor[std::to_string(slot)];
+
+                if (auto fP = state.firstPerson ? stl::to_underlying(*state.firstPerson) : -1; fP != -1) {
+					j_Slot["1stPerson"] = fP; 
 				}
-				auto fP = state.firstPerson ? stl::to_underlying(*state.firstPerson) : -1;
-				if (!a_intfc->WriteRecordData(fP)) {
-					logger::error("Failed to save first person toggle state ({}) for {:X}", fP, formID);
-					return false;
-				}
-				auto tP = state.thirdPerson ? stl::to_underlying(*state.thirdPerson) : -1;
-				if (!a_intfc->WriteRecordData(tP)) {
-					logger::error("Failed to save third person toggle state ({}) for {:X}", tP, formID);
-					return false;
-				}
+				j_Slot["3rdPerson"] = state.thirdPerson ? stl::to_underlying(*state.thirdPerson) : -1;
 			}
 		}
 
 		return true;
-	}
+    }
 
-	bool AutoToggleMap::Load(SKSE::SerializationInterface* a_intfc)
-	{
+    bool AutoToggleMap::Load(const nlohmann::json& a_intfc)
+    {
 		assert(a_intfc);
-		std::size_t size;
-		a_intfc->ReadRecordData(size);
-
 		Locker locker(_lock);
+
 		_map.clear();
 
-		RE::FormID formID;
+	    for (auto& [j_refHandle, j_slots] : a_intfc.items()) {
+			if (j_slots.is_object()) {
+				auto refHandle = string::lexical_cast<RE::RefHandle>(j_refHandle);
 
-		std::size_t numSlots;
-		Biped slot;
+				for (const auto& [j_slot, j_state] : j_slots.items()) {
+					auto slot = static_cast<Biped>(string::lexical_cast<std::uint32_t>(j_slot));
 
-		for (std::size_t i = 0; i < size; i++) {
-			a_intfc->ReadRecordData(formID);
-			if (!a_intfc->ResolveFormID(formID, formID)) {
-				logger::error("Failed to resolve formID {}"sv, formID);
-				continue;
-			}
-			a_intfc->ReadRecordData(numSlots);
-			for (std::size_t j = 0; j < numSlots; j++) {
-				a_intfc->ReadRecordData(slot);
+					ToggleState state{ std::nullopt, std::nullopt };
+					if (auto it = j_state.find("1stPerson"); it != j_state.end()) {
+						state.firstPerson = it->get<Slot::State>();
+					}
+					state.thirdPerson = j_state["3rdPerson"].get<Slot::State>();
 
-				std::int32_t fP = -1;
-				std::int32_t tP = -1;
-			    ToggleState state{ std::nullopt, std::nullopt };
-
-				a_intfc->ReadRecordData(fP);
-				if (fP != -1) {
-					state.firstPerson = static_cast<Slot::State>(fP);
+					_map[refHandle].insert_or_assign(slot, state);
 				}
-				a_intfc->ReadRecordData(tP);
-				if (tP != -1) {
-					state.thirdPerson = static_cast<Slot::State>(tP);
-				}
-
-				_map[formID].insert_or_assign(slot, state);
 			}
 		}
-
-		logger::info("Loaded {} entries", _map.size());
 
 		return true;
-	}
+    }
 
-	std::string DecodeTypeCode(std::uint32_t a_typeCode)
+    void Save(const std::string& a_savePath)
 	{
-		constexpr std::size_t SIZE = sizeof(std::uint32_t);
+		const auto path = fmt::format(filePath, a_savePath);
 
-		std::string sig;
-		sig.resize(SIZE);
-		char* iter = reinterpret_cast<char*>(&a_typeCode);
-		for (std::size_t i = 0, j = SIZE - 2; i < SIZE - 1; ++i, --j) {
-			sig[j] = iter[i];
+	    std::ofstream ofs(path);
+		if (ofs.is_open()) {
+			nlohmann::json jsonOut;
+			AutoToggleMap::GetSingleton()->Save(jsonOut);
+			ofs << std::setw(4) << jsonOut;
 		}
-		return sig;
+		ofs.close();
 	}
 
-	void SaveCallback(SKSE::SerializationInterface* a_intfc)
+    void Load(const std::string& a_savePath)
 	{
-		const auto map = AutoToggleMap::GetSingleton();
-		if (!map->Save(a_intfc, kAutoToggle, kSerializationVersion)) {
-			logger::critical("Failed to save auto toggle regs!"sv);
-		}
+		const auto path = fmt::format(filePath, a_savePath);
 
-		logger::info("Finished saving data"sv);
-	}
+		std::ifstream ifs(path);
+		if (ifs.is_open()) {
+			nlohmann::json jsonIn = nlohmann::json::parse(ifs);
 
-	void LoadCallback(SKSE::SerializationInterface* a_intfc)
-	{
-		std::uint32_t type;
-		std::uint32_t version;
-		std::uint32_t length;
-		while (a_intfc->GetNextRecordInfo(type, version, length)) {
+			auto version = jsonIn["Version"].get<std::uint32_t>();
 			if (version != kSerializationVersion) {
-				logger::critical("Loaded data is out of date! Read ({}), expected ({}) for type code ({})", version, kSerializationVersion, DecodeTypeCode(type));
-				continue;
+				AutoToggleMap::GetSingleton()->Clear();
+			    logger::critical("[Serialization] {} : expected {}, got {}", a_savePath, kSerializationVersion, version);
+				return;
 			}
-			if (type == kAutoToggle) {
-				const auto map = AutoToggleMap::GetSingleton();
-				if (!map->Load(a_intfc)) {
-					logger::critical("Failed to load auto toggle regs!"sv);
+
+		    AutoToggleMap::GetSingleton()->Load(jsonIn);
+		}
+		ifs.close();
+	}
+
+    void Delete(const std::string& a_savePath)
+	{
+		const auto path = fmt::format(filePath, a_savePath);
+		std::filesystem::remove(path);
+	}
+
+    void ClearUnreferencedSaveData()
+	{
+		constexpr auto get_save_directory = []() -> std::optional<std::filesystem::path> {
+			wchar_t* buffer{ nullptr };
+			const auto result = SHGetKnownFolderPath(FOLDERID_Documents, KF_FLAG_DEFAULT, nullptr, std::addressof(buffer));
+			std::unique_ptr<wchar_t[], decltype(&::CoTaskMemFree)> knownPath(buffer, ::CoTaskMemFree);
+			if (!knownPath || result != S_OK) {
+				logger::error("failed to get My Documents path"sv);
+				return std::nullopt;
+			}
+
+			std::filesystem::path path = knownPath.get();
+			path /= "My Games/Skyrim Special Edition/"sv;
+			path /= RE::INISettingCollection::GetSingleton()->GetSetting("sLocalSavePath:General")->GetString();
+			return path;
+		};
+
+		const auto directory = get_save_directory();
+		if (!directory) {
+			return;
+		}
+
+	    for (const auto& entry : std::filesystem::directory_iterator(folderPath)) {
+			if (entry.exists() && !entry.path().empty() && entry.path().extension() == ".json"sv) {
+				auto saveFileName = entry.path().stem().string();
+				auto savePath = fmt::format("{}{}.ess", directory->string(), saveFileName);
+			    if (!std::filesystem::exists(savePath)) {
+					logger::info("[Serialization] Cleaning up unreferenced {} save data", saveFileName);
+				    const auto serializedSlotsPath = fmt::format(filePath, saveFileName);
+					std::filesystem::remove(serializedSlotsPath);
 				}
-			} else {
-				logger::critical("Unrecognized record type ({})!", DecodeTypeCode(type));
 			}
 		}
 	}
 
-	void RevertCallback(SKSE::SerializationInterface*)
-	{
-		AutoToggleMap::GetSingleton()->Clear();
-
-		logger::info("Reverting...");
-	}
-
-	void SetToggleState(const RE::Actor* a_actor, const Biped a_slot, Slot::State a_state, bool a_firstPerson)
+    void SetToggleState(RE::Actor* a_actor, const Biped a_slot, Slot::State a_state, bool a_firstPerson)
 	{
 		Biped slot;
 		if (headSlots.find(a_slot) != headSlots.end()) {
@@ -196,7 +173,7 @@ namespace Serialization
 		AutoToggleMap::GetSingleton()->Add(a_actor, slot, a_state, a_firstPerson);
 	}
 
-	Slot::State GetToggleState(const RE::Actor* a_actor, const Biped a_slot, bool a_firstPerson)
+	Slot::State GetToggleState(RE::Actor* a_actor, const Biped a_slot, bool a_firstPerson)
 	{
 		Biped slot;
 		if (headSlots.find(a_slot) != headSlots.end()) {
@@ -206,9 +183,9 @@ namespace Serialization
 		}
 
 		if (const auto state = AutoToggleMap::GetSingleton()->GetToggleState(a_actor, slot, a_firstPerson); state) {
-			return *state;
+		    return *state;
 		} else {
-			AutoToggleMap::GetSingleton()->Add(a_actor, slot, Slot::State::kHide, a_firstPerson);
+		    AutoToggleMap::GetSingleton()->Add(a_actor, slot, Slot::State::kHide, a_firstPerson);
 			return Slot::State::kHide;
 		}
 	}

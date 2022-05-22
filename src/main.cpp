@@ -3,11 +3,38 @@
 #include "Serialization.h"
 #include "Settings.h"
 
-void OnInit(SKSE::MessagingInterface::Message* a_msg)
+void MessageHandler(SKSE::MessagingInterface::Message* a_message)
 {
-	if (a_msg->type == SKSE::MessagingInterface::kDataLoaded) {
-		Events::Manager::Register();
-		Events::AnimationManager::Register();
+	switch (a_message->type) {
+	case SKSE::MessagingInterface::kDataLoaded:
+		{
+			Events::Manager::Register();
+			Events::AnimationManager::Register();
+
+			Serialization::ClearUnreferencedSaveData();
+		}
+		break;
+	case SKSE::MessagingInterface::kSaveGame:
+		{
+			std::string savePath = { static_cast<char*>(a_message->data), a_message->dataLen };
+			Serialization::Save(savePath);
+		}
+		break;
+	case SKSE::MessagingInterface::kPreLoadGame:
+		{
+			std::string savePath({ static_cast<char*>(a_message->data), a_message->dataLen });
+			string::replace_last_instance(savePath, ".ess", "");
+			Serialization::Load(savePath);
+		}
+		break;
+	case SKSE::MessagingInterface::kDeleteGame:
+		{
+			std::string savePath({ static_cast<char*>(a_message->data), a_message->dataLen });
+			Serialization::Delete(savePath);
+		}
+		break;
+	default:
+		break;
 	}
 }
 
@@ -79,14 +106,8 @@ extern "C" DLLEXPORT bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadInterface* a_s
 
 	Hooks::Install();
 
-	const auto serialization = SKSE::GetSerializationInterface();
-	serialization->SetUniqueID(Serialization::kEquipmentToggle);
-	serialization->SetSaveCallback(Serialization::SaveCallback);
-	serialization->SetLoadCallback(Serialization::LoadCallback);
-	serialization->SetRevertCallback(Serialization::RevertCallback);
-
     const auto messaging = SKSE::GetMessagingInterface();
-	messaging->RegisterListener(OnInit);
+	messaging->RegisterListener(MessageHandler);
 
 	return true;
 }

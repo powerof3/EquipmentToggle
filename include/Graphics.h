@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Settings.h"
+struct SlotData;
 
 class Graphics
 {

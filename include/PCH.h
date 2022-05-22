@@ -9,13 +9,13 @@
 #else
 #	include <spdlog/sinks/msvc_sink.h>
 #endif
-#pragma warning(pop)
-
-#include <ranges>
-#include <nlohmann/json.hpp>
+#include <ShlObj.h>
 #include <frozen/map.h>
 #include <frozen/set.h>
+#include <nlohmann/json.hpp>
+#include <ranges>
 #include <xbyak/xbyak.h>
+#pragma warning(pop)
 
 #define DLLEXPORT __declspec(dllexport)
 
