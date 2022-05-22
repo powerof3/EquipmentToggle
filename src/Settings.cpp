@@ -54,7 +54,7 @@ Settings* Settings::GetSingleton()
 
 void Settings::LoadSettings()
 {
-	constexpr auto path = L"Data/SKSE/Plugins/po3_EquipmentToggle.json";
+	constexpr auto path = L"Data/EquipmentToggle/Config.json";
 
 	std::ifstream ifs(path);
 	if (ifs.is_open()) {
