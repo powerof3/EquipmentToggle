@@ -130,7 +130,7 @@ namespace Serialization
 		std::filesystem::remove(path);
 	}
 
-    void ClearUnreferencedSaveData()
+    void ClearUnreferencedSlotData()
 	{
 		constexpr auto get_save_directory = []() -> std::optional<std::filesystem::path> {
 			wchar_t* buffer{ nullptr };
@@ -163,7 +163,7 @@ namespace Serialization
 					auto saveFileName = entry.path().stem().string();
 					auto savePath = fmt::format("{}{}.ess", saveDir->string(), saveFileName);
 					if (!std::filesystem::exists(savePath)) {
-						logger::info("Cleaning up unreferenced {} save data", saveFileName);
+						logger::info("Cleaning up unreferenced {} slot data", saveFileName);
 						const auto serializedSlotsPath = fmt::format(filePath, saveFileName);
 						std::filesystem::remove(serializedSlotsPath);
 					}

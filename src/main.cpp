@@ -11,7 +11,7 @@ void MessageHandler(SKSE::MessagingInterface::Message* a_message)
 			Events::Manager::Register();
 			Events::AnimationManager::Register();
 
-			Serialization::ClearUnreferencedSaveData();
+			Serialization::ClearUnreferencedSlotData();
 		}
 		break;
 	case SKSE::MessagingInterface::kSaveGame:
@@ -83,11 +83,11 @@ void InitializeLog()
 
 	auto log = std::make_shared<spdlog::logger>("global log"s, std::move(sink));
 
-	log->set_level(spdlog::level::debug);
-	log->flush_on(spdlog::level::debug);
+	log->set_level(spdlog::level::info);
+	log->flush_on(spdlog::level::info);
 
 	spdlog::set_default_logger(std::move(log));
-	spdlog::set_pattern("[%l] %v"s);
+	spdlog::set_pattern("[%H:%M:%S:%e] %v"s);
 
 	logger::info(FMT_STRING("{} v{}"), Version::PROJECT, Version::NAME);
 }

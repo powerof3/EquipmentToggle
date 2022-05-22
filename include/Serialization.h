@@ -49,7 +49,7 @@ namespace Serialization
 	void Load(const std::string& a_savePath);
 	void Delete(const std::string& a_savePath);
 
-    void ClearUnreferencedSaveData();
+    void ClearUnreferencedSlotData();
 
 	void SetToggleState(RE::Actor* a_actor, Biped a_slot, Slot::State a_state, bool a_firstPerson);
 	Slot::State GetToggleState(RE::Actor* a_actor, Biped a_slot, bool a_firstPerson);
