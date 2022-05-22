@@ -5,7 +5,21 @@ using BipedSlot = RE::BIPED_MODEL::BipedObjectSlot;
 using Key = RE::BSKeyboardDevice::Key;
 using HeadPart = RE::BGSHeadPart::HeadPartType;
 
-using SlotSet = std::set<Biped>;
+namespace Slot
+{
+	enum class State : std::int32_t
+	{
+		kUnhide = 0,
+		kHide
+	};
+
+	inline State operator!(State a_state)
+	{
+		return a_state == State::kHide ? State::kUnhide : State::kHide;
+	}
+
+	using Set = std::set<Biped>;
+}
 
 inline auto constexpr NPC{ "ActorTypeNPC"sv };
 inline auto constexpr PlayerHome{ "LocTypePlayerHouse"sv };
@@ -82,9 +96,9 @@ inline constexpr frozen::map<std::uint32_t, BipedSlot, Biped::kEditorTotal> slot
 };
 
 inline constexpr frozen::set<Biped, 5> headSlots{
-    Biped::kHead,
-    Biped::kHair,
-    Biped::kLongHair,
-    Biped::kEars,
-    Biped::kDecapitateHead
+	Biped::kHead,
+	Biped::kHair,
+	Biped::kLongHair,
+	Biped::kEars,
+	Biped::kDecapitateHead
 };

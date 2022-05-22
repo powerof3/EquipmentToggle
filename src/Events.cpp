@@ -1,5 +1,7 @@
 #include "Events.h"
+
 #include "Graphics.h"
+#include "Serialization.h"
 
 namespace Events
 {
@@ -52,7 +54,7 @@ namespace Events
 					logger::info("Registered for NPC combat");
 				}
 			}
-			if (!homeHide && hide.home.toggle != Toggle::Type::kDisabled) {
+			if (!homeHide && hide.home.CanDoToggle()) {
 				homeHide = true;
 				if (const auto player = RE::PlayerCharacter::GetSingleton()) {
 					player->AddEventSink<RE::BGSActorCellEvent>(GetSingleton());
@@ -60,7 +62,7 @@ namespace Events
 					logger::info("Registered for player cell change event");
 				}
 			}
-			if (!dialogue && hide.dialogue.toggle != Toggle::Type::kDisabled) {
+			if (!dialogue && hide.dialogue.CanDoToggle()) {
 				dialogue = true;
 				if (const auto menuMgr = RE::UI::GetSingleton()) {
 					menuMgr->AddEventSink<RE::MenuOpenCloseEvent>(GetSingleton());
@@ -68,7 +70,7 @@ namespace Events
 					logger::info("Registered for dialogue menu event");
 				}
 			}
-			if (!useHotKey && hotKey.key != Key::kNone && hotKey.type.toggle != Toggle::Type::kDisabled) {
+			if (!useHotKey && hotKey.key != Key::kNone && hotKey.type.CanDoToggle()) {
 				useHotKey = true;
 				if (const auto inputMgr = RE::BSInputDeviceManager::GetSingleton()) {
 					inputMgr->AddEventSink(GetSingleton());
@@ -94,7 +96,7 @@ namespace Events
 					a_this, [](const SlotData& a_slotData) {
 						return a_slotData.unhide.combat.CanDoPlayerToggle();
 					},
-					Graphics::State::kUnhide);
+					Slot::State::kUnhide);
 			}
 		} else {
 			if (playerInCombat) {
@@ -103,7 +105,7 @@ namespace Events
 					a_this, [](const SlotData& a_slotData) {
 						return a_slotData.unhide.combat.CanDoPlayerToggle();
 					},
-					Graphics::State::kHide);
+					Slot::State::kHide);
 			}
 		}
 	}
@@ -125,10 +127,10 @@ namespace Events
 
 		switch (*evn->newState) {
 		case RE::ACTOR_COMBAT_STATE::kCombat:
-			Graphics::ToggleActorEquipment(actor, can_toggle, Graphics::State::kUnhide);
+			Graphics::ToggleActorEquipment(actor, can_toggle, Slot::State::kUnhide);
 			break;
 		case RE::ACTOR_COMBAT_STATE::kNone:
-			Graphics::ToggleActorEquipment(actor, can_toggle, Graphics::State::kHide);
+			Graphics::ToggleActorEquipment(actor, can_toggle, Slot::State::kHide);
 			break;
 		default:
 			break;
@@ -153,7 +155,7 @@ namespace Events
 			return EventResult::kContinue;
 		}
 
-		constexpr auto is_cell_home = [&]() {
+		const auto is_cell_home = [&]() {
 			if (cell->IsInteriorCell()) {
 				if (const auto loc = cell->GetLocation(); loc) {
 					return loc->HasKeywordString(PlayerHome) || loc->HasKeywordString(Inn);
@@ -172,16 +174,17 @@ namespace Events
 		}
 
 		if (result) {
-			Graphics::ToggleActorEquipment(
+			auto state = playerInHouse ? Slot::State::kHide : Slot::State::kUnhide;
+		    Graphics::ToggleActorEquipment(
 				player, [&](const SlotData& a_slotData) {
 					return a_slotData.hide.home.CanDoPlayerToggle();
 				},
-				playerInHouse ? Graphics::State::kHide : Graphics::State::kUnhide);
+				state);
 
 			Graphics::ToggleFollowerEquipment([](const SlotData& a_slotData) {
 				return a_slotData.hide.home.CanDoFollowerToggle();
 			},
-				playerInHouse ? Graphics::State::kHide : Graphics::State::kUnhide);
+				state);
 		}
 
 		return EventResult::kContinue;
@@ -233,11 +236,13 @@ namespace Events
 
 		if (a_evn->menuName == RE::DialogueMenu::MENU_NAME) {
 			if (const auto player = RE::PlayerCharacter::GetSingleton(); player && player->Is3DLoaded()) {
-				Graphics::ToggleActorEquipment(
+				auto state = a_evn->opening ? Slot::State::kHide : Slot::State::kUnhide;
+
+			    Graphics::ToggleActorEquipment(
 					player, [](const SlotData& a_slotData) {
 						return a_slotData.hide.dialogue.CanDoPlayerToggle();
 					},
-					static_cast<Graphics::State>(a_evn->opening));
+					state);
 
 				const auto dialogueTarget = RE::MenuTopicManager::GetSingleton()->speaker.get();
 
@@ -246,7 +251,7 @@ namespace Events
 						dialogueTargetActor, [&](const SlotData& a_slotData) {
 							return a_slotData.hide.dialogue.CanDoToggle(dialogueTargetActor);
 						},
-						static_cast<Graphics::State>(a_evn->opening));
+						state);
 				}
 			}
 		}
@@ -273,7 +278,7 @@ namespace Events
 
 			auto& [hotKey, hide, unhide, slots] = a_slotData;
 
-			if (!weaponDraw && unhide.weaponDraw.toggle != Toggle::Type::kDisabled) {
+			if (!weaponDraw && unhide.weaponDraw.CanDoToggle()) {
 				weaponDraw = true;
 
 				if (scripts) {
@@ -369,13 +374,13 @@ namespace Events
 				actor, [&](const SlotData& a_slotData) {
 					return a_slotData.unhide.weaponDraw.CanDoToggle(actor);
 				},
-				Graphics::State::kUnhide);
+				Slot::State::kUnhide);
 		} else if (a_evn->tag == "weaponsheathe") {
 			Graphics::ToggleActorEquipment(
 				actor, [&](const SlotData& a_slotData) {
 					return a_slotData.unhide.weaponDraw.CanDoToggle(actor);
 				},
-				Graphics::State::kHide);
+				Slot::State::kHide);
 		}
 
 		return EventResult::kContinue;

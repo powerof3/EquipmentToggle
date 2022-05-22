@@ -8,17 +8,16 @@ namespace Hooks
 {
 	struct detail
 	{
-		static bool get_equipped_and_visible_slot(RE::Actor* a_actor, Biped a_slot)
+		static bool can_hide_on_equip(RE::Actor* a_actor, Biped a_slot)
 		{
 			bool result = false;
 
 			Settings::GetSingleton()->ForEachSlot([&](const SlotData& a_slotData) {
 				auto& [hotKey, hide, unhide, slots] = a_slotData;
-				if (slots.contains(a_slot) && hide.equipped.CanDoToggle(a_actor) && Serialization::GetToggleState(a_actor, a_slot)) {
+				if (slots.contains(a_slot) && hide.equipped.CanDoToggle(a_actor)) {
 					result = true;
-					return false;
 				}
-				return true;
+				return !result;
 			});
 
 			return result;
@@ -26,13 +25,16 @@ namespace Hooks
 
 		static void hide_armor(const RE::BipedAnim* a_biped, RE::NiAVObject* a_object, std::int32_t a_slot)
 		{
-			const auto ref = a_biped ? a_biped->actorRef.get() : RE::TESObjectREFRPtr();
-			const auto actor = ref ? ref->As<RE::Actor>() : nullptr;
+			if (a_biped) {
+				const auto ref = a_biped->actorRef.get();
+				const auto actor = ref ? ref->As<RE::Actor>() : nullptr;
 
-			if (actor) {
-				const auto slot = static_cast<Biped>(a_slot);
-				if (get_equipped_and_visible_slot(actor, slot)) {
-					a_object->CullNode(true);
+				if (actor) {
+					const auto slot = static_cast<Biped>(a_slot);
+					const auto isFP = Graphics::IsFirstPerson(actor, a_biped);
+					if (can_hide_on_equip(actor, slot) && Serialization::GetToggleState(actor, slot, isFP) == Slot::State::kHide) {
+						a_object->CullNode(true);
+					}
 				}
 			}
 		}
@@ -78,17 +80,19 @@ namespace Hooks
 
 	namespace Weapon
 	{
-		struct AttachWeaponModelToActor
+		struct LoadAndAttachAddOn
 		{
-			static RE::NiAVObject* thunk(RE::TESModel* a_model, std::int32_t a_slot, RE::TESObjectREFR* a_ref, RE::BipedAnim** a_biped, RE::NiAVObject* a_root3D)
+			static RE::NiAVObject* thunk(RE::TESModel* a_model, RE::BIPED_OBJECT a_slot, RE::TESObjectREFR* a_ref, RE::BSTSmartPointer<RE::BipedAnim>& a_biped, RE::NiAVObject* a_root3D)
 			{
 				const auto object = func(a_model, a_slot, a_ref, a_biped, a_root3D);
 
-				if (a_ref && object) {
+				if (a_biped && a_ref && object) {
 					if (const auto actor = a_ref->As<RE::Actor>(); actor) {
-						const auto slot = static_cast<Biped>(a_slot);
-						if (detail::get_equipped_and_visible_slot(actor, slot)) {
-							object->CullNode(true);
+						const auto isFP = Graphics::IsFirstPerson(actor, a_biped.get());
+						if (detail::can_hide_on_equip(actor, a_slot)) {
+							if (Serialization::GetToggleState(actor, a_slot, isFP) == Slot::State::kHide) {
+								object->CullNode(true);
+							}
 						}
 					}
 				}
@@ -100,10 +104,20 @@ namespace Hooks
 
 		inline void Install()
 		{
-			REL::Relocation<std::uintptr_t> target{ RELOCATION_ID(15506, 15683) };
+			std::array targets{
+				std::make_pair(RELOCATION_ID(15506, 15683), OFFSET(0x17F, 0x2B1)),  // BipedAnim::AttachBipedWeapon
+				std::make_pair(RELOCATION_ID(15506, 15683), OFFSET(0x1D0, 0x2FA)),  // BipedAnim::AttachBipedWeapon
 
-			stl::write_thunk_call<AttachWeaponModelToActor>(target.address() + OFFSET(0x17F, 0x2B1));
-			stl::write_thunk_call<AttachWeaponModelToActor>(target.address() + OFFSET(0x1D0, 0x2FA));
+				std::make_pair(RELOCATION_ID(15511, 15688), OFFSET(0x141, 0x199)),  // BipedAnim::AttachBipedAmmo (Quiver)
+
+				std::make_pair(RELOCATION_ID(15514, 15691), OFFSET(0x185, 0x24C)),  // BipedAnim::AttachBipedTorch
+				std::make_pair(RELOCATION_ID(15514, 15691), OFFSET(0x282, 0x342)),  // BipedAnim::AttachBipedTorch
+			};
+
+			for (const auto& [id, offset] : targets) {
+				REL::Relocation<std::uintptr_t> target{ id, offset };
+				stl::write_thunk_call<LoadAndAttachAddOn>(target.address());
+			}
 		}
 	}
 
@@ -114,7 +128,7 @@ namespace Hooks
 			static RE::NiAVObject* thunk(RE::Actor* a_actor)
 			{
 				const auto root = func(a_actor);
-				if (a_actor && root && Graphics::ToggleActorHeadParts(a_actor, Graphics::State::kHide)) {
+				if (a_actor && root && Graphics::ToggleActorHeadParts(a_actor, Slot::State::kHide)) {
 					return nullptr;
 				}
 
@@ -127,13 +141,16 @@ namespace Hooks
 		{
 			static void thunk(RE::BipedAnim* a_biped, RE::NiAVObject* a_geometry, std::uint32_t a_slot)
 			{
-				const auto ref = a_biped ? a_biped->actorRef.get() : RE::NiPointer<RE::TESObjectREFR>();
-				const auto actor = ref ? ref->As<RE::Actor>() : nullptr;
+				if (a_biped) {
+					const auto ref = a_biped->actorRef.get();
+					const auto actor = ref ? ref->As<RE::Actor>() : nullptr;
 
-				if (a_biped && actor) {
-					const auto slot = static_cast<Biped>(a_slot);
-					if (detail::get_equipped_and_visible_slot(actor, slot)) {
-						return;
+					if (actor) {
+						const auto slot = static_cast<Biped>(a_slot);
+						const auto isFP = Graphics::IsFirstPerson(actor, a_biped);
+						if (detail::can_hide_on_equip(actor, slot) && Serialization::GetToggleState(actor, slot, isFP) == Slot::State::kHide) {
+							return;
+						}
 					}
 				}
 

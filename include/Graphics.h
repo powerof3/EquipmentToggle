@@ -5,22 +5,19 @@
 class Graphics
 {
 public:
-	enum class State
-	{
-		kUnhide = 0,
-		kHide
-	};
-
     static SlotData GetHeadSlots();
 
-	static void ToggleActorEquipment(RE::Actor* a_actor, std::function<bool(const SlotData& a_slotData)> a_func, State a_hide);
+	static void ToggleActorEquipment(RE::Actor* a_actor, std::function<bool(const SlotData& a_slotData)> a_func, Slot::State a_state);
 
-	static void ToggleFollowerEquipment(std::function<bool(const SlotData& a_slotData)> a_func, State a_hide);
+	static void ToggleFollowerEquipment(std::function<bool(const SlotData& a_slotData)> a_func, Slot::State a_state);
 
 	static void ToggleNPCEquipment(std::function<bool(RE::Actor* a_actor, const SlotData& a_slotData)> a_func);
 	static void ToggleAllEquipment(std::function<bool(RE::Actor* a_actor, const SlotData& a_slotData)> a_func);
 
-	static bool ToggleActorHeadParts(RE::Actor* a_actor, State a_hide);
+	static bool ToggleActorHeadParts(RE::Actor* a_actor, Slot::State a_state);
+
+	static bool IsFirstPerson(const RE::Actor* a_actor, const RE::NiAVObject* a_root);
+	static bool IsFirstPerson(const RE::Actor* a_actor, const RE::BipedAnim* a_biped);
 
 private:
 	struct detail
@@ -45,21 +42,17 @@ private:
 		}
 
 		static void toggle_partition(RE::BSGeometry& a_shape, const RE::TESObjectARMA& a_arma, bool a_hide);
-
         static void toggle_partition(const RE::BSGeometry& a_shape, const RE::TESRace& a_race, bool a_hide);
-
         static void toggle_partition(RE::BSGeometry& a_shape, bool a_hide);
 
         static void toggle_extra_parts(const RE::BSTArray<RE::BGSHeadPart*>& a_parts, RE::NiAVObject& a_root, const RE::TESObjectARMA& a_arma, bool a_hide);
-
         static void toggle_extra_parts(const RE::BSTArray<RE::BGSHeadPart*>& a_parts, RE::NiAVObject& a_root, const RE::TESRace& a_race, bool a_hide);
-
         static void toggle_extra_parts(const RE::BSTArray<RE::BGSHeadPart*>& a_parts, RE::NiAVObject& a_root, bool a_hide);
 
 		static void update_head_part(RE::Actor* a_actor, RE::NiAVObject* a_root, RE::TESObjectARMA* a_arma, HeadPart a_type, bool a_hide);
     };
 
-	static void toggle_slots(RE::Actor* a_actor, const RE::BSTSmartPointer<RE::BipedAnim>& a_biped, RE::NiAVObject* a_root, const SlotSet& a_slots, bool a_hide);
+	static void toggle_slots(RE::Actor* a_actor, const RE::BSTSmartPointer<RE::BipedAnim>& a_biped, RE::NiAVObject* a_root, const Slot::Set& a_slots, Slot::State a_state);
 
-	static void toggle_slots(RE::Actor* a_actor, const RE::BSTSmartPointer<RE::BipedAnim>& a_biped, RE::NiAVObject* a_root, const SlotSet& a_slots);
+	static void toggle_slots(RE::Actor* a_actor, const RE::BSTSmartPointer<RE::BipedAnim>& a_biped, RE::NiAVObject* a_root, const Slot::Set& a_slots);
 };

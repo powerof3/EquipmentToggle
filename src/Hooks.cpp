@@ -8,14 +8,14 @@ void Hooks::Install()
 	bool weapons = false;
 	bool head = false;
 
-	Settings::GetSingleton()->ForEachArmorSlot([&](const SlotData& a_slotData) {
-		if (armor && head) {
+	Settings::GetSingleton()->ForEachSlot([&](const SlotData& a_slotData) {
+		if (armor && head && weapons) {
 			return false;
 		}
 
 		auto& [hotKey, hide, unhide, slots] = a_slotData;
 
-		if (hide.equipped.toggle != Toggle::Type::kDisabled) {
+		if (hide.equipped.CanDoToggle()) {
 			if (!armor && !slots.empty()) {
 				armor = true;
 				Armor::Install();
@@ -27,19 +27,7 @@ void Hooks::Install()
 				Head::Install();
 				logger::info("Installed head/hair hook");
 			}
-		}
 
-		return true;
-	});
-
-	Settings::GetSingleton()->ForEachWeaponSlot([&](const SlotData& a_slotData) {
-		if (weapons) {
-			return false;
-		}
-
-		auto& [hotKey, hide, unhide, slots] = a_slotData;
-
-		if (hide.equipped.toggle != Toggle::Type::kDisabled) {
 			if (!weapons && !slots.empty()) {
 				weapons = true;
 				Weapon::Install();

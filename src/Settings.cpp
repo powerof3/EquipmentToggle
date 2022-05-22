@@ -1,5 +1,10 @@
 #include "Settings.h"
 
+bool Toggle::CanDoToggle() const
+{
+	return toggle != Type::kDisabled;
+}
+
 bool Toggle::CanDoToggle(RE::Actor* a_actor) const
 {
 	switch (toggle) {
@@ -131,7 +136,7 @@ void Settings::LoadSettingsFromJSON_Impl(const nlohmann::json& a_json, const std
 
 		logger::info("	Slots");
 
-		SlotSet slotSet;
+		Slot::Set slotSet;
 		if (a_type == "armors") {
 			for (auto& j_slot : equipment["slots"]) {
 				auto slot = j_slot.get<std::uint32_t>();
@@ -154,43 +159,20 @@ void Settings::LoadSettingsFromJSON_Impl(const nlohmann::json& a_json, const std
 				logger::info("		slot {}", slot);
 				slotSet.insert(bipedMap.at(slot));
 			}
-			armorSlots.emplace_back(SlotData{ hotKey, hide, unhide, slotSet });
 		} else {
 			for (auto& j_slot : equipment["slots"]) {
 			    logger::info("		slot {}", j_slot.get<Biped>());
 			    slotSet.insert(j_slot.get<Biped>());
 			}
-			weaponSlots.emplace_back(SlotData{ hotKey, hide, unhide, slotSet });
 		}
-	}
-}
 
-void Settings::ForEachArmorSlot(std::function<bool(const SlotData& a_slotData)> a_callback) const
-{
-	for (auto& slotData : armorSlots) {
-		if (!a_callback(slotData)) {
-			return;
-		}
-	}
-}
-
-void Settings::ForEachWeaponSlot(std::function<bool(const SlotData& a_slotData)> a_callback) const
-{
-	for (auto& slotData : weaponSlots) {
-		if (!a_callback(slotData)) {
-			return;
-		}
+		equipmentSlots.emplace_back(SlotData{ hotKey, hide, unhide, slotSet });
 	}
 }
 
 void Settings::ForEachSlot(std::function<bool(const SlotData& a_slotData)> a_callback) const
 {
-	for (auto& slotData : armorSlots) {
-		if (!a_callback(slotData)) {
-			return;
-		}
-	}
-	for (auto& slotData : weaponSlots) {
+	for (auto& slotData : equipmentSlots) {
 		if (!a_callback(slotData)) {
 			return;
 		}

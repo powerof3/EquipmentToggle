@@ -2,28 +2,32 @@
 
 namespace Serialization
 {
-	bool AutoToggleMap::Add(const RE::Actor* a_actor, Biped a_slot, bool a_toggleState)
-    {
+	void AutoToggleMap::Add(const RE::Actor* a_actor, Biped a_slot, Slot::State a_toggleState, bool a_firstPerson)
+	{
 		Locker locker(_lock);
-		return _map[a_actor->GetFormID()].insert_or_assign(a_slot, a_toggleState).second;
-    }
+		if (a_firstPerson) {
+			_map[a_actor->GetFormID()][a_slot].firstPerson = a_toggleState;
+		} else {
+			_map[a_actor->GetFormID()][a_slot].thirdPerson = a_toggleState;
+		}
+	}
 
-    bool AutoToggleMap::Remove(const RE::Actor* a_actor)
-    {
+	bool AutoToggleMap::Remove(const RE::Actor* a_actor)
+	{
 		Locker locker(_lock);
-        return _map.erase(a_actor->GetFormID()) != 0;
-    }
+		return _map.erase(a_actor->GetFormID()) != 0;
+	}
 
-    std::int32_t AutoToggleMap::GetToggleState(const RE::Actor* a_actor, Biped a_slot)
-    {
+	std::optional<Slot::State> AutoToggleMap::GetToggleState(const RE::Actor* a_actor, Biped a_slot, bool a_firstPerson)
+	{
 		Locker locker(_lock);
 		if (auto ptrIt = _map.find(a_actor->GetFormID()); ptrIt != _map.end()) {
 			if (auto slotIt = ptrIt->second.find(a_slot); slotIt != ptrIt->second.end()) {
-				return slotIt->second;
+				return a_firstPerson ? slotIt->second.firstPerson : slotIt->second.thirdPerson;
 			}
 		}
-        return -1;
-    }
+		return std::nullopt;
+	}
 
 	void AutoToggleMap::Clear()
 	{
@@ -67,8 +71,14 @@ namespace Serialization
 					logger::error("Failed to save slot ({}) for {:X}", slot, formID);
 					return false;
 				}
-			    if (!a_intfc->WriteRecordData(state)) {
-					logger::error("Failed to save toggle state ({}) for {:X}", state, formID);
+				auto fP = state.firstPerson ? stl::to_underlying(*state.firstPerson) : -1;
+				if (!a_intfc->WriteRecordData(fP)) {
+					logger::error("Failed to save first person toggle state ({}) for {:X}", fP, formID);
+					return false;
+				}
+				auto tP = state.thirdPerson ? stl::to_underlying(*state.thirdPerson) : -1;
+				if (!a_intfc->WriteRecordData(tP)) {
+					logger::error("Failed to save third person toggle state ({}) for {:X}", tP, formID);
 					return false;
 				}
 			}
@@ -89,10 +99,9 @@ namespace Serialization
 		RE::FormID formID;
 
 		std::size_t numSlots;
-	    Biped slot;
-	    bool state;
+		Biped slot;
 
-	    for (std::size_t i = 0; i < size; i++) {
+		for (std::size_t i = 0; i < size; i++) {
 			a_intfc->ReadRecordData(formID);
 			if (!a_intfc->ResolveFormID(formID, formID)) {
 				logger::error("Failed to resolve formID {}"sv, formID);
@@ -101,9 +110,21 @@ namespace Serialization
 			a_intfc->ReadRecordData(numSlots);
 			for (std::size_t j = 0; j < numSlots; j++) {
 				a_intfc->ReadRecordData(slot);
-				a_intfc->ReadRecordData(state);
 
-			    _map[formID].insert_or_assign(slot, state);
+				std::int32_t fP = -1;
+				std::int32_t tP = -1;
+			    ToggleState state{ std::nullopt, std::nullopt };
+
+				a_intfc->ReadRecordData(fP);
+				if (fP != -1) {
+					state.firstPerson = static_cast<Slot::State>(fP);
+				}
+				a_intfc->ReadRecordData(tP);
+				if (tP != -1) {
+					state.thirdPerson = static_cast<Slot::State>(tP);
+				}
+
+				_map[formID].insert_or_assign(slot, state);
 			}
 		}
 
@@ -163,32 +184,32 @@ namespace Serialization
 		logger::info("Reverting...");
 	}
 
-    void SetToggleState(const RE::Actor* a_actor, const Biped a_slot, bool a_hide) {
-        Biped slot;
-        if (headSlots.find(a_slot) != headSlots.end()) {
-            slot = Biped::kHead;
-        } else {
-            slot = a_slot;
-        }
+	void SetToggleState(const RE::Actor* a_actor, const Biped a_slot, Slot::State a_state, bool a_firstPerson)
+	{
+		Biped slot;
+		if (headSlots.find(a_slot) != headSlots.end()) {
+			slot = Biped::kHead;
+		} else {
+			slot = a_slot;
+		}
 
-        AutoToggleMap::GetSingleton()->Add(a_actor, slot, a_hide);
-    }
+		AutoToggleMap::GetSingleton()->Add(a_actor, slot, a_state, a_firstPerson);
+	}
 
-    bool GetToggleState(const RE::Actor* a_actor, const Biped a_slot)
-    {
-        Biped slot;
-        if (headSlots.find(a_slot) != headSlots.end()) {
-            slot = Biped::kHead;
-        } else {
-            slot = a_slot;
-        }
+	Slot::State GetToggleState(const RE::Actor* a_actor, const Biped a_slot, bool a_firstPerson)
+	{
+		Biped slot;
+		if (headSlots.find(a_slot) != headSlots.end()) {
+			slot = Biped::kHead;
+		} else {
+			slot = a_slot;
+		}
 
-        if (const auto state = AutoToggleMap::GetSingleton()->GetToggleState(a_actor, slot); state != -1) {
-            return static_cast<bool>(state);
-        }
-
-        AutoToggleMap::GetSingleton()->Add(a_actor, slot, true);
-
-        return true;
-    }
+		if (const auto state = AutoToggleMap::GetSingleton()->GetToggleState(a_actor, slot, a_firstPerson); state) {
+			return *state;
+		} else {
+			AutoToggleMap::GetSingleton()->Add(a_actor, slot, Slot::State::kHide, a_firstPerson);
+			return Slot::State::kHide;
+		}
+	}
 }

@@ -2,22 +2,28 @@
 
 namespace Serialization
 {
-	constexpr std::uint32_t kSerializationVersion = 1;
+	constexpr std::uint32_t kSerializationVersion = 2;
 	constexpr std::uint32_t kEquipmentToggle = 'ETOG';
 	constexpr std::uint32_t kAutoToggle = 'TOGG';
 
-    class AutoToggleMap
+	class AutoToggleMap
 	{
 	public:
+		struct ToggleState
+		{
+			std::optional<Slot::State> firstPerson{ std::nullopt };
+			std::optional<Slot::State> thirdPerson{ std::nullopt };
+		};
+
 		static AutoToggleMap* GetSingleton()
 		{
 			static AutoToggleMap singleton;
 			return &singleton;
 		}
 
-		bool Add(const RE::Actor* a_actor, Biped a_slot, bool a_toggleState);
+		void Add(const RE::Actor* a_actor, Biped a_slot, Slot::State a_toggleState, bool a_firstPerson);
 		bool Remove(const RE::Actor* a_actor);
-		std::int32_t GetToggleState(const RE::Actor* a_actor, Biped a_slot);
+		std::optional<Slot::State> GetToggleState(const RE::Actor* a_actor, Biped a_slot, bool a_firstPerson);
 
 		void Clear();
 		bool Save(SKSE::SerializationInterface* a_intfc, std::uint32_t a_type, std::uint32_t a_version);
@@ -37,7 +43,7 @@ namespace Serialization
 		using Locker = std::lock_guard<Lock>;
 
 		mutable Lock _lock{};
-		std::map<RE::FormID, std::map<Biped, bool>> _map{};
+		std::map<RE::FormID, std::map<Biped, ToggleState>> _map{};
 	};
 
 	std::string DecodeTypeCode(std::uint32_t a_typeCode);
@@ -46,6 +52,6 @@ namespace Serialization
 	void LoadCallback(SKSE::SerializationInterface* a_intfc);
 	void RevertCallback(SKSE::SerializationInterface* a_intfc);
 
-	void SetToggleState(const RE::Actor* a_actor, Biped a_slot, bool a_hide);
-    bool GetToggleState(const RE::Actor* a_actor, Biped a_slot);
+	void SetToggleState(const RE::Actor* a_actor, Biped a_slot, Slot::State a_state, bool a_firstPerson);
+	Slot::State GetToggleState(const RE::Actor* a_actor, Biped a_slot, bool a_firstPerson);
 }

@@ -11,11 +11,15 @@ struct Toggle
 		kEveryone
 	};
 
-	[[nodiscard]] bool CanDoToggle(RE::Actor* a_actor) const;
+	[[nodiscard]] bool CanDoToggle() const;
+    [[nodiscard]] bool CanDoToggle(RE::Actor* a_actor) const;
 	[[nodiscard]] bool CanDoPlayerToggle() const;
 	[[nodiscard]] bool CanDoFollowerToggle() const;
 
-	Type toggle{ Type::kDisabled };
+private:
+	friend class Settings;
+
+    Type toggle{ Type::kDisabled };
 };
 
 struct SlotData
@@ -41,7 +45,7 @@ struct SlotData
 		Toggle weaponDraw{};
 	} unhide;
 
-	SlotSet slots{};
+	Slot::Set slots{};
 };
 
 class Settings
@@ -51,13 +55,10 @@ public:
 
 	void LoadSettings();
 
-	void ForEachArmorSlot(std::function<bool(const SlotData& a_slotData)> a_callback) const;
 	void ForEachSlot(std::function<bool(const SlotData& a_slotData)> a_callback) const;
-	void ForEachWeaponSlot(std::function<bool(const SlotData& a_slotData)> a_callback) const;
 
 private:
 	void LoadSettingsFromJSON_Impl(const nlohmann::json& a_json, const std::string& a_type);
 
-	std::vector<SlotData> armorSlots;
-	std::vector<SlotData> weaponSlots;
+	std::vector<SlotData> equipmentSlots;
 };
