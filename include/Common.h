@@ -95,10 +95,9 @@ inline constexpr frozen::map<std::uint32_t, BipedSlot, Biped::kEditorTotal> slot
 	{ 61, BipedSlot::kFX01 },
 };
 
-inline constexpr frozen::set<Biped, 5> headSlots{
+inline constexpr frozen::set<Biped, 4> headSlots{
 	Biped::kHead,
 	Biped::kHair,
 	Biped::kLongHair,
-	Biped::kEars,
-	Biped::kDecapitateHead
+	Biped::kEars
 };

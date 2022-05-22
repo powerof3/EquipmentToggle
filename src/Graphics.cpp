@@ -147,7 +147,7 @@ void Graphics::toggle_slots(RE::Actor* a_actor, const RE::BSTSmartPointer<RE::Bi
 	}
 
 	SKSE::GetTaskInterface()->AddTask([a_biped, a_slots, a_actor, a_root, a_state]() {
-		const bool isFP = IsFirstPerson(a_actor, a_root);
+	    const bool isFP = IsFirstPerson(a_actor, a_root);
 	    for (auto& slot : a_slots) {
 			auto& object = a_biped->objects[slot];
 			if (const auto node = object.partClone; node) {
@@ -162,9 +162,7 @@ void Graphics::toggle_slots(RE::Actor* a_actor, const RE::BSTSmartPointer<RE::Bi
 					case Biped::kHead:
 					case Biped::kHair:
 					case Biped::kLongHair:
-					case Biped::kCirclet:
 					case Biped::kEars:
-					case Biped::kDecapitateHead:
 						{
 							detail::update_head_part(a_actor, a_root, object.addon, HeadPart::kHair, static_cast<bool>(a_state));
 							detail::update_head_part(a_actor, a_root, object.addon, HeadPart::kFace, static_cast<bool>(a_state));
@@ -190,7 +188,7 @@ void Graphics::toggle_slots(RE::Actor* a_actor, const RE::BSTSmartPointer<RE::Bi
 	    for (auto& slot : a_slots) {
 		    const auto& object = a_biped->objects[slot];
 			if (const auto node = object.partClone; node) {
-				auto invert_state = !Serialization::GetToggleState(a_actor, slot, isFP);
+			    auto invert_state = !Serialization::GetToggleState(a_actor, slot, isFP);
 				Serialization::SetToggleState(a_actor, slot, invert_state, isFP);
 
 				node->CullNode(static_cast<bool>(invert_state));
@@ -202,9 +200,7 @@ void Graphics::toggle_slots(RE::Actor* a_actor, const RE::BSTSmartPointer<RE::Bi
 					case Biped::kHead:
 					case Biped::kHair:
 					case Biped::kLongHair:
-					case Biped::kCirclet:
 					case Biped::kEars:
-					case Biped::kDecapitateHead:
 						{
 							detail::update_head_part(a_actor, a_root, object.addon, HeadPart::kHair, static_cast<bool>(invert_state));
 							detail::update_head_part(a_actor, a_root, object.addon, HeadPart::kFace, static_cast<bool>(invert_state));

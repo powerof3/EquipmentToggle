@@ -42,7 +42,7 @@ bool Toggle::CanDoFollowerToggle() const
 bool SlotData::ContainsHeadSlots() const
 {
 	return std::ranges::any_of(slots, [](const auto& slot) {
-		return slot == Biped::kHead || slot == Biped::kHair || slot == Biped::kLongHair || slot == Biped::kEars || slot == Biped::kDecapitateHead;
+		return slot == Biped::kHead || slot == Biped::kHair || slot == Biped::kLongHair || slot == Biped::kEars;
 	});
 }
 
@@ -104,23 +104,27 @@ void Settings::LoadSettingsFromJSON_Impl(const nlohmann::json& a_json, const std
 			try {
 				hide.dialogue.toggle = j_hide.at("duringDialogue").get<Toggle::Type>();
 			} catch (...) {}
+			try {
+				hide.weaponDraw.toggle = j_hide.at("onWeaponDraw").get<Toggle::Type>();
+			} catch (...) {}
 
 			logger::info("	Hide");
 			logger::info("		whenEquipped : {}", stl::to_underlying(hide.equipped.toggle));
 			logger::info("		atHome : {}", stl::to_underlying(hide.home.toggle));
 			logger::info("		duringDialogue : {}", stl::to_underlying(hide.dialogue.toggle));
+			logger::info("		onWeaponDraw : {}", stl::to_underlying(hide.weaponDraw.toggle));
 		} catch (...) {
 			logger::info("	Hide : settings not found");
 		}
 
 		SlotData::Unhide unhide;
 		try {
-			auto& j_hide = equipment.at("unhide");
+			auto& j_unhide = equipment.at("unhide");
 			try {
-				unhide.combat.toggle = j_hide.at("duringCombat").get<Toggle::Type>();
+				unhide.combat.toggle = j_unhide.at("duringCombat").get<Toggle::Type>();
 			} catch (...) {}
 			try {
-				unhide.weaponDraw.toggle = j_hide.at("onWeaponDraw").get<Toggle::Type>();
+				unhide.weaponDraw.toggle = j_unhide.at("onWeaponDraw").get<Toggle::Type>();
 			} catch (...) {}
 
 			logger::info("	Unhide");

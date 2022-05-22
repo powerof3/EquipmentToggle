@@ -37,6 +37,7 @@ struct SlotData
 		Toggle equipped{};
 		Toggle home{};
 		Toggle dialogue{};
+		Toggle weaponDraw{};
 	} hide;
 
 	struct Unhide

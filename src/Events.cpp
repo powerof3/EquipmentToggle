@@ -278,7 +278,7 @@ namespace Events
 
 			auto& [hotKey, hide, unhide, slots] = a_slotData;
 
-			if (!weaponDraw && unhide.weaponDraw.CanDoToggle()) {
+			if (!weaponDraw && (unhide.weaponDraw.CanDoToggle() || hide.weaponDraw.CanDoToggle())) {
 				weaponDraw = true;
 
 				if (scripts) {
@@ -304,7 +304,9 @@ namespace Events
 
 			if (!registeredForAnimEvent && a_slotData.unhide.weaponDraw.CanDoToggle(a_actor)) {
 				registeredForAnimEvent = true;
-				a_actor->AddAnimationGraphEventSink(GetSingleton());
+
+				a_actor->RemoveAnimationGraphEventSink(GetSingleton());
+			    a_actor->AddAnimationGraphEventSink(GetSingleton());
 			}
 
 			return true;
@@ -338,22 +340,7 @@ namespace Events
 			return EventResult::kContinue;
 		}
 
-		bool registeredForAnimEvent = false;
-
-		Settings::GetSingleton()->ForEachSlot([&](const SlotData& a_slotData) {
-			if (registeredForAnimEvent) {
-				return false;
-			}
-
-			if (!registeredForAnimEvent && a_slotData.unhide.weaponDraw.CanDoToggle(actor)) {
-				registeredForAnimEvent = true;
-				if (actor->AddAnimationGraphEventSink(GetSingleton())) {
-					logger::info("registered animation event for {} on race change", actor->GetName());
-				}
-			}
-
-			return true;
-		});
+        RegisterForAnimationEventSink(actor);
 
 		return EventResult::kContinue;
 	}
@@ -375,12 +362,22 @@ namespace Events
 					return a_slotData.unhide.weaponDraw.CanDoToggle(actor);
 				},
 				Slot::State::kUnhide);
+			Graphics::ToggleActorEquipment(
+				actor, [&](const SlotData& a_slotData) {
+					return a_slotData.hide.weaponDraw.CanDoToggle(actor);
+				},
+				Slot::State::kHide);
 		} else if (a_evn->tag == "weaponsheathe") {
 			Graphics::ToggleActorEquipment(
 				actor, [&](const SlotData& a_slotData) {
 					return a_slotData.unhide.weaponDraw.CanDoToggle(actor);
 				},
 				Slot::State::kHide);
+			Graphics::ToggleActorEquipment(
+				actor, [&](const SlotData& a_slotData) {
+					return a_slotData.hide.weaponDraw.CanDoToggle(actor);
+				},
+				Slot::State::kUnhide);
 		}
 
 		return EventResult::kContinue;
