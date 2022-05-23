@@ -12,14 +12,14 @@ struct Toggle
 	};
 
 	[[nodiscard]] bool CanDoToggle() const;
-    [[nodiscard]] bool CanDoToggle(RE::Actor* a_actor) const;
+	[[nodiscard]] bool CanDoToggle(RE::Actor* a_actor) const;
 	[[nodiscard]] bool CanDoPlayerToggle() const;
 	[[nodiscard]] bool CanDoFollowerToggle() const;
 
 private:
 	friend class Settings;
 
-    Type toggle{ Type::kDisabled };
+	Type toggle{ Type::kDisabled };
 };
 
 struct SlotData
@@ -54,12 +54,20 @@ class Settings
 public:
 	static Settings* GetSingleton();
 
-	void LoadSettings();
+	bool LoadSettings();
 
 	void ForEachSlot(std::function<bool(const SlotData& a_slotData)> a_callback) const;
 
 private:
 	void LoadSettingsFromJSON_Impl(const nlohmann::json& a_json, const std::string& a_type);
+
+	template <class T>
+    static void load_json_setting(const nlohmann::json& a_json, T& a_setting, const std::string& a_type)
+	{
+		if (const auto it = a_json.find(a_type); it != a_json.end()) {
+			a_setting = it->get<T>();
+		}
+	}
 
 	std::vector<SlotData> equipmentSlots;
 };

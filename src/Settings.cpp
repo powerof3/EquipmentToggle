@@ -20,7 +20,7 @@ bool Toggle::CanDoToggle(RE::Actor* a_actor) const
 		return false;
 	};
 
-    switch (toggle) {
+	switch (toggle) {
 	case Type::kPlayerOnly:
 		return a_actor->IsPlayerRef();
 	case Type::kFollowerOnly:
@@ -65,20 +65,32 @@ Settings* Settings::GetSingleton()
 	return std::addressof(singleton);
 }
 
-void Settings::LoadSettings()
+bool Settings::LoadSettings()
 {
+	bool result = true;
+
 	constexpr auto path = L"Data/EquipmentToggle/Config.json";
 
 	std::ifstream ifs(path);
 	if (ifs.is_open()) {
-		nlohmann::json json = nlohmann::json::parse(ifs, nullptr, true, true);
+		try {
+			const auto json = nlohmann::json::parse(ifs, nullptr, true, true);
 
-		logger::info("{:*^30}", "SLOT DATA");
+			logger::info("{:*^30}", "SLOT DATA");
 
-		LoadSettingsFromJSON_Impl(json, "armors");
-		LoadSettingsFromJSON_Impl(json, "weapons");
+			LoadSettingsFromJSON_Impl(json, "armors");
+			LoadSettingsFromJSON_Impl(json, "weapons");
+
+		} catch (nlohmann::json::exception& e) {
+		    logger::critical("Unable to parse config file! Use a JSON validator to fix any mistakes");
+			logger::critical("	Error : {}", e.what());
+
+			result = false;
+		}
 	}
 	ifs.close();
+
+	return result;
 }
 
 void Settings::LoadSettingsFromJSON_Impl(const nlohmann::json& a_json, const std::string& a_type)
@@ -92,12 +104,9 @@ void Settings::LoadSettingsFromJSON_Impl(const nlohmann::json& a_json, const std
 		SlotData::HotKey hotKey;
 		try {
 			auto& j_hotKey = equipment.at("hotKey");
-			try {
-				hotKey.key = j_hotKey.at("key").get<Key>();
-			} catch (...) {}
-			try {
-				hotKey.type.toggle = j_hotKey.at("type").get<Toggle::Type>();
-			} catch (...) {}
+
+			load_json_setting(j_hotKey, hotKey.key, "key");
+			load_json_setting(j_hotKey, hotKey.type.toggle, "type");
 
 			logger::info("	Key : {}", hotKey.key);
 			logger::info("		toggle type : {}", stl::to_underlying(hotKey.type.toggle));
@@ -108,18 +117,11 @@ void Settings::LoadSettingsFromJSON_Impl(const nlohmann::json& a_json, const std
 		SlotData::Hide hide;
 		try {
 			auto& j_hide = equipment.at("hide");
-			try {
-				hide.equipped.toggle = j_hide.at("whenEquipped").get<Toggle::Type>();
-			} catch (...) {}
-			try {
-				hide.home.toggle = j_hide.at("atHome").get<Toggle::Type>();
-			} catch (...) {}
-			try {
-				hide.dialogue.toggle = j_hide.at("duringDialogue").get<Toggle::Type>();
-			} catch (...) {}
-			try {
-				hide.weaponDraw.toggle = j_hide.at("onWeaponDraw").get<Toggle::Type>();
-			} catch (...) {}
+
+			load_json_setting(j_hide, hide.equipped.toggle, "whenEquipped");
+			load_json_setting(j_hide, hide.home.toggle, "atHome");
+			load_json_setting(j_hide, hide.dialogue.toggle, "duringDialogue");
+			load_json_setting(j_hide, hide.weaponDraw.toggle, "onWeaponDraw");
 
 			logger::info("	Hide");
 			logger::info("		whenEquipped : {}", stl::to_underlying(hide.equipped.toggle));
@@ -133,12 +135,9 @@ void Settings::LoadSettingsFromJSON_Impl(const nlohmann::json& a_json, const std
 		SlotData::Unhide unhide;
 		try {
 			auto& j_unhide = equipment.at("unhide");
-			try {
-				unhide.combat.toggle = j_unhide.at("duringCombat").get<Toggle::Type>();
-			} catch (...) {}
-			try {
-				unhide.weaponDraw.toggle = j_unhide.at("onWeaponDraw").get<Toggle::Type>();
-			} catch (...) {}
+
+			load_json_setting(j_unhide, unhide.combat.toggle, "duringCombat");
+			load_json_setting(j_unhide, unhide.weaponDraw.toggle, "onWeaponDraw");
 
 			logger::info("	Unhide");
 			logger::info("		duringCombat : {}", stl::to_underlying(unhide.combat.toggle));
@@ -155,6 +154,7 @@ void Settings::LoadSettingsFromJSON_Impl(const nlohmann::json& a_json, const std
 		logger::info("	Slots");
 
 		Slot::Set slotSet;
+
 		if (a_type == "armors") {
 			for (auto& j_slot : equipment["slots"]) {
 				auto slot = j_slot.get<std::uint32_t>();
@@ -178,8 +178,8 @@ void Settings::LoadSettingsFromJSON_Impl(const nlohmann::json& a_json, const std
 			}
 		} else {
 			for (auto& j_slot : equipment["slots"]) {
-			    logger::info("		slot {}", j_slot.get<Biped>());
-			    slotSet.insert(j_slot.get<Biped>());
+				logger::info("		slot {}", j_slot.get<Biped>());
+				slotSet.insert(j_slot.get<Biped>());
 			}
 		}
 
