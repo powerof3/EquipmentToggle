@@ -7,13 +7,26 @@ bool Toggle::CanDoToggle() const
 
 bool Toggle::CanDoToggle(RE::Actor* a_actor) const
 {
-	switch (toggle) {
+	const auto is_follower = [](RE::Actor* a_actor) {
+		if (a_actor->HasKeywordString(NPC)) {
+			if (a_actor->IsPlayerTeammate()) {
+				return true;
+			}
+			if (a_actor->IsCommandedActor()) {
+				auto commander = a_actor->GetCommandingActor();
+				return commander && commander->IsPlayerRef();
+			}
+		}
+		return false;
+	};
+
+    switch (toggle) {
 	case Type::kPlayerOnly:
 		return a_actor->IsPlayerRef();
 	case Type::kFollowerOnly:
-		return a_actor->IsPlayerTeammate() && a_actor->HasKeywordString(NPC);
+		return is_follower(a_actor);
 	case Type::kPlayerAndFollower:
-		return a_actor->IsPlayerRef() || a_actor->IsPlayerTeammate() && a_actor->HasKeywordString(NPC);
+		return a_actor->IsPlayerRef() || is_follower(a_actor);
 	case Type::kEveryone:
 		return a_actor->HasKeywordString(NPC);
 	default:
@@ -151,7 +164,6 @@ void Settings::LoadSettingsFromJSON_Impl(const nlohmann::json& a_json, const std
 				case 34:
 				case 37:
 				case 38:
-				case 40:
 					logger::info("		unreplaceable slot {}", slot);
 					continue;
 				default:

@@ -302,7 +302,9 @@ namespace Events
 				return false;
 			}
 
-			if (!registeredForAnimEvent && a_slotData.unhide.weaponDraw.CanDoToggle(a_actor)) {
+			auto& [hotKey, hide, unhide, slots] = a_slotData;
+
+			if (!registeredForAnimEvent && (unhide.weaponDraw.CanDoToggle(a_actor) || hide.weaponDraw.CanDoToggle(a_actor))) {
 				registeredForAnimEvent = true;
 
 				a_actor->RemoveAnimationGraphEventSink(GetSingleton());
