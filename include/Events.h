@@ -57,9 +57,9 @@ namespace Events
 		EventResult ProcessEvent(const RE::BSAnimationGraphEvent* a_evn, RE::BSTEventSource<RE::BSAnimationGraphEvent>*) override;
 
 	private:
-        void RegisterForAnimationEventSink(RE::Actor* a_actor);
+		void RegisterForAnimationEventSink(RE::Actor* a_actor);
 
-	    AnimationManager() = default;
+		AnimationManager() = default;
 		AnimationManager(const AnimationManager&) = delete;
 		AnimationManager(AnimationManager&&) = delete;
 

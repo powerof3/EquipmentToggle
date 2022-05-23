@@ -62,7 +62,7 @@ private:
 	void LoadSettingsFromJSON_Impl(const nlohmann::json& a_json, const std::string& a_type);
 
 	template <class T>
-    static void load_json_setting(const nlohmann::json& a_json, T& a_setting, const std::string& a_type)
+	static void load_json_setting(const nlohmann::json& a_json, T& a_setting, const std::string& a_type)
 	{
 		if (const auto it = a_json.find(a_type); it != a_json.end()) {
 			a_setting = it->get<T>();

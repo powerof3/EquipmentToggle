@@ -7,7 +7,7 @@ void MessageHandler(SKSE::MessagingInterface::Message* a_message)
 {
 	static bool result = false;
 
-    switch (a_message->type) {
+	switch (a_message->type) {
 	case SKSE::MessagingInterface::kPostLoad:
 		{
 			if (result = Settings::GetSingleton()->LoadSettings(); result) {
@@ -21,6 +21,7 @@ void MessageHandler(SKSE::MessagingInterface::Message* a_message)
 			if (result) {
 				Events::Manager::Register();
 				Events::AnimationManager::Register();
+				Serialization::Manager::Register();
 			} else {
 				if (const auto console = RE::ConsoleLog::GetSingleton(); console) {
 					console->Print("[Equipment Toggle] Unable to parse config file! Use a JSON validator to fix any errors\n");
@@ -116,7 +117,7 @@ extern "C" DLLEXPORT bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadInterface* a_s
 
 	SKSE::Init(a_skse);
 
-    const auto messaging = SKSE::GetMessagingInterface();
+	const auto messaging = SKSE::GetMessagingInterface();
 	messaging->RegisterListener(MessageHandler);
 
 	return true;

@@ -82,7 +82,7 @@ bool Settings::LoadSettings()
 			LoadSettingsFromJSON_Impl(json, "weapons");
 
 		} catch (nlohmann::json::exception& e) {
-		    logger::critical("Unable to parse config file! Use a JSON validator to fix any mistakes");
+			logger::critical("Unable to parse config file! Use a JSON validator to fix any mistakes");
 			logger::critical("	Error : {}", e.what());
 
 			result = false;

@@ -4,10 +4,34 @@
 
 namespace Serialization
 {
-	std::optional<Slot::State> AutoToggleMap::GetToggleState(RE::Actor* a_actor, Biped a_slot, bool a_firstPerson)
+	Manager* Manager::GetSingleton()
+	{
+		static Manager singleton;
+		return &singleton;
+	}
+
+	void Manager::Register()
+	{
+		auto scripts = RE::ScriptEventSourceHolder::GetSingleton();
+		if (scripts) {
+			scripts->AddEventSink(GetSingleton());
+			logger::info("Registered form deletion event handler"sv);
+		}
+	}
+
+	RE::BSEventNotifyControl Manager::ProcessEvent(const RE::TESFormDeleteEvent* a_event, RE::BSTEventSource<RE::TESFormDeleteEvent>*)
+	{
+		if (a_event && a_event->formID != 0) {
+			Remove(a_event->formID);
+		}
+
+		return RE::BSEventNotifyControl::kContinue;
+	}
+
+	std::optional<Slot::State> Manager::GetToggleState(RE::Actor* a_actor, Biped a_slot, bool a_firstPerson)
 	{
 		Locker locker(_lock);
-	    if (auto ptrIt = _map.find(a_actor->CreateRefHandle().native_handle()); ptrIt != _map.end()) {
+		if (auto ptrIt = _map.find(a_actor->GetFormID()); ptrIt != _map.end()) {
 			if (auto slotIt = ptrIt->second.find(a_slot); slotIt != ptrIt->second.end()) {
 				return a_firstPerson ? slotIt->second.firstPerson : slotIt->second.thirdPerson;
 			}
@@ -15,61 +39,127 @@ namespace Serialization
 		return std::nullopt;
 	}
 
-    void AutoToggleMap::Add(RE::Actor* a_actor, Biped a_slot, Slot::State a_toggleState, bool a_firstPerson)
+	void Manager::Add(RE::Actor* a_actor, Biped a_slot, Slot::State a_toggleState, bool a_firstPerson)
 	{
 		Locker locker(_lock);
 		if (a_firstPerson) {
-			_map[a_actor->CreateRefHandle().native_handle()][a_slot].firstPerson = a_toggleState;
+			_map[a_actor->GetFormID()][a_slot].firstPerson = a_toggleState;
 		} else {
-			_map[a_actor->CreateRefHandle().native_handle()][a_slot].thirdPerson = a_toggleState;
+			_map[a_actor->GetFormID()][a_slot].thirdPerson = a_toggleState;
 		}
 	}
 
-	bool AutoToggleMap::Remove(RE::Actor* a_actor)
+	bool Manager::Remove(RE::FormID a_formID)
 	{
 		Locker locker(_lock);
-		return _map.erase(a_actor->CreateRefHandle().native_handle()) != 0;
+		return _map.erase(a_formID) != 0;
 	}
 
-	void AutoToggleMap::Clear()
+	void Manager::Clear()
 	{
+		_savedModIndexMap.clear();
+
 		Locker locker(_lock);
 		_map.clear();
 	}
 
-    bool AutoToggleMap::Save(nlohmann::json& a_intfc)
-    {
-		assert(a_intfc);
+	void Manager::SavePluginList(nlohmann::ordered_json& a_intfc)
+	{
+		if (const auto dataHandler = RE::TESDataHandler::GetSingleton(); dataHandler) {
+			for (auto& mod : dataHandler->files) {
+				if (auto compileIndex = mod ? mod->GetCompileIndex() : 0xFF; compileIndex != 0xFF) {
+					auto& j_plugin = a_intfc[mod->GetFilename().data()];
+					if (compileIndex == 0xFE) {
+						j_plugin["smallFileCompileIndex"] = mod->GetSmallFileCompileIndex();
+					} else {
+						j_plugin["compileIndex"] = compileIndex;
+					}
+				}
+			}
+		}
+	}
+
+	void Manager::LoadPluginList(const nlohmann::ordered_json& a_intfc)
+	{
+		_savedModIndexMap.clear();
+
+		if (const auto dataHandler = RE::TESDataHandler::GetSingleton(); dataHandler) {
+			for (auto& [modName, compileIndices] : a_intfc.items()) {
+				std::uint32_t oldIndex = 0xFF;
+				std::uint32_t newIndex = 0xFF;
+
+				if (auto it = compileIndices.find("smallFileCompileIndex"); it != compileIndices.end()) {
+					const auto smallFileCompileIndex = it->get<std::uint32_t>();
+					oldIndex = (0xFE000 | smallFileCompileIndex);
+				} else {
+					oldIndex = compileIndices["compileIndex"].get<std::uint32_t>();
+				}
+
+				if (const auto mod = dataHandler->LookupModByName(modName); mod) {
+					newIndex = mod->GetPartialIndex();
+				}
+
+				_savedModIndexMap[oldIndex] = newIndex;
+			}
+		}
+	}
+
+	bool Manager::ResolveFormID(RE::FormID a_formIDIn, RE::FormID& a_formIDOut)
+	{
+		auto modIndex = a_formIDIn >> 24;
+		if (modIndex == 0xFF) {
+			a_formIDOut = a_formIDIn;
+			return true;
+		}
+
+		if (modIndex == 0xFE) {
+			modIndex = a_formIDIn >> 12;
+		}
+
+		std::uint32_t loadedModIndex = 0xFF;
+		if (const auto it = _savedModIndexMap.find(modIndex); it != _savedModIndexMap.end()) {
+			loadedModIndex = it->second;
+		}
+
+		if (loadedModIndex < 0xFF) {
+			a_formIDOut = (a_formIDIn & 0x00FFFFFF) | (loadedModIndex << 24);
+			return true;
+		} else if (loadedModIndex > 0xFF) {
+			a_formIDOut = (loadedModIndex << 12) | (a_formIDIn & 0x00000FFF);
+			return true;
+		}
+
+		return false;
+	}
+
+	bool Manager::Save(nlohmann::ordered_json& a_intfc)
+	{
 		Locker locker(_lock);
 
-		a_intfc["Version"] = kSerializationVersion;
-
-		for (auto& [refHandle, slots] : _map) {
-			auto& j_actor = a_intfc[std::to_string(refHandle)];
+		for (auto& [formID, slots] : _map) {
+			auto& j_actor = a_intfc[fmt::format("0x{:X}", formID)];
 			for (const auto& [slot, state] : slots) {
 				auto& j_Slot = j_actor[std::to_string(slot)];
 
-                if (auto fP = state.firstPerson ? stl::to_underlying(*state.firstPerson) : -1; fP != -1) {
-					j_Slot["1stPerson"] = fP; 
+				if (auto fP = state.firstPerson ? stl::to_underlying(*state.firstPerson) : -1; fP != -1) {
+					j_Slot["1stPerson"] = fP;
 				}
 				j_Slot["3rdPerson"] = state.thirdPerson ? stl::to_underlying(*state.thirdPerson) : -1;
 			}
 		}
 
 		return true;
-    }
+	}
 
-    bool AutoToggleMap::Load(const nlohmann::json& a_intfc)
-    {
-		assert(a_intfc);
+	bool Manager::Load(const nlohmann::ordered_json& a_intfc)
+	{
 		Locker locker(_lock);
 
 		_map.clear();
 
-	    for (auto& [j_refHandle, j_slots] : a_intfc.items()) {
-			if (j_slots.is_object()) {
-				auto refHandle = string::lexical_cast<RE::RefHandle>(j_refHandle);
-
+		for (auto& [j_formID, j_slots] : a_intfc.items()) {
+			auto formID = string::lexical_cast<RE::FormID>(j_formID, true);
+			if (ResolveFormID(formID, formID)) {
 				for (const auto& [j_slot, j_state] : j_slots.items()) {
 					auto slot = static_cast<Biped>(string::lexical_cast<std::uint32_t>(j_slot));
 
@@ -79,58 +169,63 @@ namespace Serialization
 					}
 					state.thirdPerson = j_state["3rdPerson"].get<Slot::State>();
 
-					_map[refHandle].insert_or_assign(slot, state);
+					_map[formID].insert_or_assign(slot, state);
 				}
 			}
 		}
 
 		return true;
-    }
+	}
 
-    void Save(const std::string& a_savePath)
+	void Save(const std::string& a_savePath)
 	{
 		const auto path = fmt::format(filePath, a_savePath);
 
-	    std::ofstream ofs(path);
+		std::ofstream ofs(path);
 		if (ofs.is_open()) {
-			nlohmann::json jsonOut;
-			AutoToggleMap::GetSingleton()->Save(jsonOut);
+			nlohmann::ordered_json jsonOut;
+
+			Manager::GetSingleton()->SavePluginList(jsonOut["pluginList"]);
+			Manager::GetSingleton()->Save(jsonOut["slotList"]);
+			jsonOut["Version"] = kSerializationVersion;
+
 			ofs << std::setw(4) << jsonOut;
 		}
 		ofs.close();
 
-		logger::info("Saving slot data to {}.json", a_savePath);
+		logger::info("Saving data to {}.json", a_savePath);
 	}
 
-    void Load(const std::string& a_savePath)
+	void Load(const std::string& a_savePath)
 	{
 		const auto path = fmt::format(filePath, a_savePath);
 
 		std::ifstream ifs(path);
 		if (ifs.is_open()) {
-			nlohmann::json jsonIn = nlohmann::json::parse(ifs);
+			nlohmann::ordered_json jsonIn = nlohmann::ordered_json::parse(ifs);
 
 			auto version = jsonIn["Version"].get<std::uint32_t>();
 			if (version != kSerializationVersion) {
-				AutoToggleMap::GetSingleton()->Clear();
-			    logger::critical("{} : expected {}, got {}", a_savePath, kSerializationVersion, version);
+				Manager::GetSingleton()->Clear();
+				logger::critical("{} : expected {}, got {}", a_savePath, kSerializationVersion, version);
 				return;
 			}
 
-		    AutoToggleMap::GetSingleton()->Load(jsonIn);
+			Manager::GetSingleton()->LoadPluginList(jsonIn["pluginList"]);
+			Manager::GetSingleton()->Load(jsonIn["slotList"]);
 
-			logger::info("Loading slot data from {}.json", a_savePath);
+			logger::info("Loading data from {}.json", a_savePath);
 		}
 		ifs.close();
 	}
 
-    void Delete(const std::string& a_savePath)
+	void Delete(const std::string& a_savePath)
 	{
 		const auto path = fmt::format(filePath, a_savePath);
 		std::filesystem::remove(path);
 	}
 
-    void ClearUnreferencedSlotData()
+	void ClearUnreferencedSlotData()
 	{
 		constexpr auto get_save_directory = []() -> std::optional<std::filesystem::path> {
 			wchar_t* buffer{ nullptr };
@@ -172,7 +267,7 @@ namespace Serialization
 		}
 	}
 
-    void SetToggleState(RE::Actor* a_actor, const Biped a_slot, Slot::State a_state, bool a_firstPerson)
+	void SetToggleState(RE::Actor* a_actor, const Biped a_slot, Slot::State a_state, bool a_firstPerson)
 	{
 		Biped slot;
 		if (headSlots.find(a_slot) != headSlots.end()) {
@@ -181,7 +276,7 @@ namespace Serialization
 			slot = a_slot;
 		}
 
-		AutoToggleMap::GetSingleton()->Add(a_actor, slot, a_state, a_firstPerson);
+		Manager::GetSingleton()->Add(a_actor, slot, a_state, a_firstPerson);
 	}
 
 	Slot::State GetToggleState(RE::Actor* a_actor, const Biped a_slot, bool a_firstPerson)
@@ -193,10 +288,10 @@ namespace Serialization
 			slot = a_slot;
 		}
 
-		if (const auto state = AutoToggleMap::GetSingleton()->GetToggleState(a_actor, slot, a_firstPerson); state) {
-		    return *state;
+		if (const auto state = Manager::GetSingleton()->GetToggleState(a_actor, slot, a_firstPerson); state) {
+			return *state;
 		} else {
-		    AutoToggleMap::GetSingleton()->Add(a_actor, slot, Slot::State::kHide, a_firstPerson);
+			Manager::GetSingleton()->Add(a_actor, slot, Slot::State::kHide, a_firstPerson);
 			return Slot::State::kHide;
 		}
 	}

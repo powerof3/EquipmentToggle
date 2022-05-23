@@ -175,7 +175,7 @@ namespace Events
 
 		if (result) {
 			auto state = playerInHouse ? Slot::State::kHide : Slot::State::kUnhide;
-		    Graphics::ToggleActorEquipment(
+			Graphics::ToggleActorEquipment(
 				player, [&](const SlotData& a_slotData) {
 					return a_slotData.hide.home.CanDoPlayerToggle();
 				},
@@ -238,7 +238,7 @@ namespace Events
 			if (const auto player = RE::PlayerCharacter::GetSingleton(); player && player->Is3DLoaded()) {
 				auto state = a_evn->opening ? Slot::State::kHide : Slot::State::kUnhide;
 
-			    Graphics::ToggleActorEquipment(
+				Graphics::ToggleActorEquipment(
 					player, [](const SlotData& a_slotData) {
 						return a_slotData.hide.dialogue.CanDoPlayerToggle();
 					},
@@ -293,7 +293,7 @@ namespace Events
 		});
 	}
 
-    void AnimationManager::RegisterForAnimationEventSink(RE::Actor* a_actor)
+	void AnimationManager::RegisterForAnimationEventSink(RE::Actor* a_actor)
 	{
 		bool registeredForAnimEvent = false;
 
@@ -308,7 +308,7 @@ namespace Events
 				registeredForAnimEvent = true;
 
 				a_actor->RemoveAnimationGraphEventSink(GetSingleton());
-			    a_actor->AddAnimationGraphEventSink(GetSingleton());
+				a_actor->AddAnimationGraphEventSink(GetSingleton());
 			}
 
 			return true;
@@ -342,7 +342,7 @@ namespace Events
 			return EventResult::kContinue;
 		}
 
-        RegisterForAnimationEventSink(actor);
+		RegisterForAnimationEventSink(actor);
 
 		return EventResult::kContinue;
 	}

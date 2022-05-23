@@ -147,8 +147,8 @@ void Graphics::toggle_slots(RE::Actor* a_actor, const RE::BSTSmartPointer<RE::Bi
 	}
 
 	SKSE::GetTaskInterface()->AddTask([a_biped, a_slots, a_actor, a_root, a_state]() {
-	    const bool isFP = IsFirstPerson(a_actor, a_root);
-	    for (auto& slot : a_slots) {
+		const bool isFP = IsFirstPerson(a_actor, a_root);
+		for (auto& slot : a_slots) {
 			auto& object = a_biped->objects[slot];
 			if (const auto node = object.partClone; node) {
 				Serialization::SetToggleState(a_actor, slot, a_state, isFP);
@@ -185,10 +185,10 @@ void Graphics::toggle_slots(RE::Actor* a_actor, const RE::BSTSmartPointer<RE::Bi
 
 	SKSE::GetTaskInterface()->AddTask([a_biped, a_slots, a_actor, a_root]() {
 		const bool isFP = IsFirstPerson(a_actor, a_root);
-	    for (auto& slot : a_slots) {
-		    const auto& object = a_biped->objects[slot];
+		for (auto& slot : a_slots) {
+			const auto& object = a_biped->objects[slot];
 			if (const auto node = object.partClone; node) {
-			    auto invert_state = !Serialization::GetToggleState(a_actor, slot, isFP);
+				auto invert_state = !Serialization::GetToggleState(a_actor, slot, isFP);
 				Serialization::SetToggleState(a_actor, slot, invert_state, isFP);
 
 				node->CullNode(static_cast<bool>(invert_state));

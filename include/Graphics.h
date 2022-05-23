@@ -5,7 +5,7 @@ struct SlotData;
 class Graphics
 {
 public:
-    static SlotData GetHeadSlots();
+	static SlotData GetHeadSlots();
 
 	static void ToggleActorEquipment(RE::Actor* a_actor, std::function<bool(const SlotData& a_slotData)> a_func, Slot::State a_state);
 
@@ -42,15 +42,15 @@ private:
 		}
 
 		static void toggle_partition(RE::BSGeometry& a_shape, const RE::TESObjectARMA& a_arma, bool a_hide);
-        static void toggle_partition(const RE::BSGeometry& a_shape, const RE::TESRace& a_race, bool a_hide);
-        static void toggle_partition(RE::BSGeometry& a_shape, bool a_hide);
+		static void toggle_partition(const RE::BSGeometry& a_shape, const RE::TESRace& a_race, bool a_hide);
+		static void toggle_partition(RE::BSGeometry& a_shape, bool a_hide);
 
-        static void toggle_extra_parts(const RE::BSTArray<RE::BGSHeadPart*>& a_parts, RE::NiAVObject& a_root, const RE::TESObjectARMA& a_arma, bool a_hide);
-        static void toggle_extra_parts(const RE::BSTArray<RE::BGSHeadPart*>& a_parts, RE::NiAVObject& a_root, const RE::TESRace& a_race, bool a_hide);
-        static void toggle_extra_parts(const RE::BSTArray<RE::BGSHeadPart*>& a_parts, RE::NiAVObject& a_root, bool a_hide);
+		static void toggle_extra_parts(const RE::BSTArray<RE::BGSHeadPart*>& a_parts, RE::NiAVObject& a_root, const RE::TESObjectARMA& a_arma, bool a_hide);
+		static void toggle_extra_parts(const RE::BSTArray<RE::BGSHeadPart*>& a_parts, RE::NiAVObject& a_root, const RE::TESRace& a_race, bool a_hide);
+		static void toggle_extra_parts(const RE::BSTArray<RE::BGSHeadPart*>& a_parts, RE::NiAVObject& a_root, bool a_hide);
 
 		static void update_head_part(RE::Actor* a_actor, RE::NiAVObject* a_root, RE::TESObjectARMA* a_arma, HeadPart a_type, bool a_hide);
-    };
+	};
 
 	static void toggle_slots(RE::Actor* a_actor, const RE::BSTSmartPointer<RE::BipedAnim>& a_biped, RE::NiAVObject* a_root, const Slot::Set& a_slots, Slot::State a_state);
 
