@@ -1,6 +1,6 @@
 {
   "name": "equipmenttoggle",
-  "version-string": "1.0.0",
+  "version-string": "1.0.2",
   "description": "Visually toggle equipment while keeping stats",
   "homepage": "https://github.com/powerof3/EquipmentToggle",
   "license": "MIT",
