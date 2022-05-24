@@ -174,7 +174,7 @@ namespace Events
 		}
 
 		if (result) {
-			auto state = playerInHouse ? Slot::State::kHide : Slot::State::kUnhide;
+            const auto state = playerInHouse ? Slot::State::kHide : Slot::State::kUnhide;
 			Graphics::ToggleActorEquipment(
 				player, [&](const SlotData& a_slotData) {
 					return a_slotData.hide.home.CanDoPlayerToggle();
@@ -246,7 +246,7 @@ namespace Events
 
 				const auto dialogueTarget = RE::MenuTopicManager::GetSingleton()->speaker.get();
 
-				if (const auto dialogueTargetActor = dialogueTarget ? dialogueTarget->As<RE::Actor>() : nullptr) {
+				if (const auto dialogueTargetActor = dialogueTarget ? dialogueTarget->As<RE::Actor>() : nullptr; dialogueTargetActor) {
 					Graphics::ToggleActorEquipment(
 						dialogueTargetActor, [&](const SlotData& a_slotData) {
 							return a_slotData.hide.dialogue.CanDoToggle(dialogueTargetActor);

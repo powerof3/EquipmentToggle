@@ -4,7 +4,7 @@
 
 void Graphics::detail::toggle_partition(RE::BSGeometry& a_shape, const RE::TESObjectARMA& a_arma, bool a_hide)
 {
-	if (const auto dismemberInstance = netimmerse_cast<RE::BSDismemberSkinInstance*>(a_shape.skinInstance.get()); dismemberInstance->partitions) {
+	if (const auto dismemberInstance = netimmerse_cast<RE::BSDismemberSkinInstance*>(a_shape.skinInstance.get()); dismemberInstance && dismemberInstance->partitions) {
 		const std::span span(dismemberInstance->partitions, dismemberInstance->numPartitions);
 		for (const auto& data : span) {
 			auto slot = data.slot;
@@ -25,9 +25,10 @@ void Graphics::detail::toggle_partition(RE::BSGeometry& a_shape, const RE::TESOb
 		a_shape.SetAppCulled(!a_hide);
 	}
 }
+
 void Graphics::detail::toggle_partition(const RE::BSGeometry& a_shape, const RE::TESRace& a_race, bool a_hide)
 {
-	if (const auto dismemberInstance = netimmerse_cast<RE::BSDismemberSkinInstance*>(a_shape.skinInstance.get()); dismemberInstance->partitions) {
+	if (const auto dismemberInstance = netimmerse_cast<RE::BSDismemberSkinInstance*>(a_shape.skinInstance.get()); dismemberInstance && dismemberInstance->partitions) {
 		const auto hairSlot = stl::to_underlying(a_race.data.hairObject.get()) + 30;
 
 		const std::span span(dismemberInstance->partitions, dismemberInstance->numPartitions);
@@ -48,9 +49,10 @@ void Graphics::detail::toggle_partition(const RE::BSGeometry& a_shape, const RE:
 		}
 	}
 }
+
 void Graphics::detail::toggle_partition(RE::BSGeometry& a_shape, bool a_hide)
 {
-	if (const auto dismemberInstance = netimmerse_cast<RE::BSDismemberSkinInstance*>(a_shape.skinInstance.get()); dismemberInstance->partitions) {
+	if (const auto dismemberInstance = netimmerse_cast<RE::BSDismemberSkinInstance*>(a_shape.skinInstance.get()); dismemberInstance && dismemberInstance->partitions) {
 		std::span span(dismemberInstance->partitions, dismemberInstance->numPartitions);
 		for (auto& [editorVisible, startNetBoneSet, slot] : span) {
 			dismemberInstance->UpdateDismemberPartion(slot, a_hide);
@@ -64,8 +66,8 @@ void Graphics::detail::toggle_extra_parts(const RE::BSTArray<RE::BGSHeadPart*>& 
 {
 	for (auto& headpart : a_parts) {
 		if (headpart) {
-			if (const auto node = a_root.GetObjectByName(headpart->formEditorID)) {
-				if (const auto shape = node->AsGeometry()) {
+			if (const auto node = a_root.GetObjectByName(headpart->formEditorID); node) {
+				if (const auto shape = node->AsGeometry(); shape) {
 					toggle_partition(*shape, a_arma, a_hide);
 				}
 			}
@@ -77,8 +79,8 @@ void Graphics::detail::toggle_extra_parts(const RE::BSTArray<RE::BGSHeadPart*>& 
 {
 	for (auto& headpart : a_parts) {
 		if (headpart) {
-			if (const auto node = a_root.GetObjectByName(headpart->formEditorID)) {
-				if (const auto shape = node->AsGeometry()) {
+			if (const auto node = a_root.GetObjectByName(headpart->formEditorID); node) {
+				if (const auto shape = node->AsGeometry(); shape) {
 					toggle_partition(*shape, a_race, a_hide);
 				}
 			}
@@ -90,8 +92,8 @@ void Graphics::detail::toggle_extra_parts(const RE::BSTArray<RE::BGSHeadPart*>& 
 {
 	for (auto& headpart : a_parts) {
 		if (headpart) {
-			if (const auto node = a_root.GetObjectByName(headpart->formEditorID)) {
-				if (const auto shape = node->AsGeometry()) {
+			if (const auto node = a_root.GetObjectByName(headpart->formEditorID); node) {
+				if (const auto shape = node->AsGeometry(); shape) {
 					toggle_partition(*shape, a_hide);
 				}
 			}
@@ -107,16 +109,16 @@ void Graphics::detail::update_head_part(RE::Actor* a_actor, RE::NiAVObject* a_ro
 	const auto face = a_root ? a_root->GetObjectByName(RE::FixedStrings::GetSingleton()->bsFaceGenNiNodeSkinned) : nullptr;
 
 	if (face && race && a_arma) {
-		if (const auto invChanges = a_actor->GetInventoryChanges()) {
+		if (const auto invChanges = a_actor->GetInventoryChanges(); invChanges) {
 			const auto wornMask = invChanges->GetWornMask();
 			if (const auto headSlot = stl::to_underlying(*race->data.headObject); headSlot <= 31) {
 				const auto headMask = 1 << headSlot;
 				if (headMask & wornMask) {
 					face->SetAppCulled(!a_hide);
 
-					if (const auto headPart = npc->GetCurrentHeadPartByType(a_type)) {
-						if (const auto node = a_root->GetObjectByName(headPart->formEditorID)) {
-							if (const auto shape = node->AsGeometry()) {
+					if (const auto headPart = npc->GetCurrentHeadPartByType(a_type); headPart) {
+						if (const auto node = a_root->GetObjectByName(headPart->formEditorID); node) {
+							if (const auto shape = node->AsGeometry(); shape) {
 								toggle_partition(*shape, a_hide);
 							}
 						}
@@ -126,9 +128,9 @@ void Graphics::detail::update_head_part(RE::Actor* a_actor, RE::NiAVObject* a_ro
 				} else {
 					a_hide ? face->SetAppCulled(!a_hide) : face->SetAppCulled(a_hide);
 
-					if (const auto headPart = npc->GetCurrentHeadPartByType(a_type)) {
-						if (const auto node = a_root->GetObjectByName(headPart->formEditorID)) {
-							if (const auto shape = node->AsGeometry()) {
+					if (const auto headPart = npc->GetCurrentHeadPartByType(a_type); headPart) {
+						if (const auto node = a_root->GetObjectByName(headPart->formEditorID); node) {
+							if (const auto shape = node->AsGeometry(); shape) {
 								toggle_partition(*shape, *a_arma, a_hide);
 							}
 						}
@@ -245,7 +247,7 @@ void Graphics::ToggleActorEquipment(RE::Actor* a_actor, std::function<bool(const
 bool Graphics::ToggleActorHeadParts(RE::Actor* a_actor, Slot::State a_state)
 {
 	auto [hotKey, hide, unhide, slots] = GetHeadSlots();
-	if (!slots.empty() && hide.equipped.CanDoToggle(a_actor) && Serialization::GetToggleState(a_actor, Biped::kHead, false) == Slot::State::kHide) {
+	if (!slots.empty() && hide.equipped.CanDoToggle(a_actor) && Serialization::GetToggleState(a_actor, Biped::kHead, false) == a_state) {
 		for (std::uint32_t i = 0; i < 2; i++) {
 			toggle_slots(a_actor, a_actor->GetBiped(i), a_actor->Get3D(i), slots, a_state);
 		}
