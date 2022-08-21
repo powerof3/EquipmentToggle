@@ -17,7 +17,8 @@ void Graphics::detail::toggle_partition(RE::BSGeometry& a_shape, const RE::TESOb
 					slot -= 100;
 				}
 			}
-			if (a_arma.HasPartOf(slotMap.at(slot))) {
+			const auto bipedSlot = slotMap.find(slot);
+			if (bipedSlot != slotMap.end() && a_arma.HasPartOf(bipedSlot->second)) {
 				dismemberInstance->UpdateDismemberPartion(data.slot, a_hide);
 			}
 		}
