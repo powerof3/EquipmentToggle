@@ -1,0 +1,46 @@
+﻿{
+  "armors": [
+    {
+      "hotKey": {
+        "key": 208,
+        "type": 0
+      },
+      "hide": {
+        "whenEquipped": 0,
+        "atHome": 0,
+        "duringDialogue": 0
+      },
+      "unhide": {
+        "duringCombat": 0,
+        "onWeaponDraw": 0
+      },
+      "slots": [
+        30,
+        31,
+        41,
+        43
+      ]
+    }
+  ],
+  "weapons": [
+    {
+      "hotKey": {
+        "key": 200,
+        "type": 0
+      },
+      "hide": {
+        "whenEquipped": 0,
+        "atHome": 0,
+        "duringDialogue": -1
+      },
+      "unhide": {
+        "duringCombat": -1,
+        "onWeaponDraw": 0
+      },
+      "slots": [
+        38,
+        41
+      ]
+    }
+  ]
+}
